@@ -2,8 +2,9 @@ name: Check Unreplied LINE Messages
 
 on:
   schedule:
-    # 毎時0分に実行（UTC）= 日本時間で毎時9時0分・10時0分・… のように正時
-    - cron: '0 * * * *'
+    # GitHub Actions の cron は UTC。23:00 UTC = 翌日表記の日本時間 08:00（JST, DST なし）
+    # 例: UTC 5月6日 23:00 = JST 5月7日 08:00
+    - cron: '0 23 * * *'
   # 手動実行も可能（テスト用）
   workflow_dispatch:
 

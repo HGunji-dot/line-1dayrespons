@@ -1,11 +1,12 @@
 """
 LINE未返信チェックスクリプト
 
-毎時GitHub Actionsから実行される。
-- 今日が日曜日または日本の祝日なら何もしない
+GitHub Actions から **毎朝 8:00（JST）** に実行される想定。
+- 今日が日曜日または日本の祝日なら何もしない（その日は通知しない）
+  → 休み明け **最初に実行される平日・非祝日** の朝に、DB 上の未返信を通常どおり一括判定する（連休中に溜まった分もまとめて対象になり得る）
 - Supabase RPC で DB 側集計した未返信ユーザー一覧を取得する
   （初回通知 or 前回通知から RE_NOTIFY_HOURS 時間経過したユーザーのみ）
-- 経過時間の長い順に並べ、Messaging API（Push / Multicast）で管理者に送信する
+- 古い未返信順に並べ、**1通のテキスト内に「受信日時・表示名」を列挙**して Messaging API（Push / Multicast）で管理者へ送る
   （LINE Notify は 2025/3/31 終了のため未使用）
 - 送信後に notification_log へ記録（次回の重複通知を防ぐ）
 - 1通あたりの文字数上限を超える場合は複数回に分けて送信する
@@ -35,7 +36,7 @@ LINE_TEXT_MAX_CHARS = 4500
 
 
 def is_skip_day(now: datetime) -> bool:
-    """日曜日または日本の祝日なら True を返す"""
+    """日曜または日本の祝日なら True（その日の朝は通知しない。休み明けに再開）。"""
     if now.weekday() == 6:
         return True
     if jpholiday.is_holiday(now.date()):
@@ -71,38 +72,26 @@ def record_notifications(supabase: Client, users: list[dict]) -> None:
             print(f"[警告] notification_log 更新失敗: {user['user_id']}")
 
 
-def format_elapsed(received_at_str: str, now: datetime) -> str:
-    """received_at から経過時間を '○時間○分' 形式で返す"""
+def format_received_at_jst(received_at_str: str) -> str:
+    """DB の timestamptz（ISO）を JST の表示用に整形する"""
     received_at = datetime.fromisoformat(received_at_str.replace("Z", "+00:00"))
-    delta = now.astimezone(timezone.utc) - received_at.astimezone(timezone.utc)
-    total_minutes = int(delta.total_seconds() // 60)
-    hours, minutes = divmod(total_minutes, 60)
-    if hours >= 48:
-        days, remaining_hours = divmod(hours, 24)
-        return f"{days}日{remaining_hours}時間（要注意）"
-    return f"{hours}時間{minutes}分"
+    return received_at.astimezone(JST).strftime("%Y/%m/%d %H:%M")
 
 
 def build_header(user_count: int, now: datetime) -> str:
     return (
-        f"\n【未返信アラート】{now.strftime('%Y/%m/%d %H:%M')} 現在\n"
+        f"\n【未返信アラート】{now.strftime('%Y/%m/%d %H:%M')} JST\n"
         f"{UNREPLIED_HOURS}時間以上返信がないお客様: {user_count} 件\n"
-        + "─" * 18
+        "（最古の未返信メッセージの受信日時・表示名）\n"
+        + "─" * 24
     )
 
 
-def build_user_block(index: int, user: dict, now: datetime) -> str:
-    elapsed = format_elapsed(user["oldest_received_at"], now)
-    snippet = (user["oldest_text"] or "（内容なし）")[:30]
-    if len(user["oldest_text"] or "") > 30:
-        snippet += "…"
-    # 再通知の場合はラベルを付ける
-    label = "" if user.get("is_first_notify") else "【再通知】"
-    return (
-        f"\n{index}. {label}{user['display_name'] or user['user_id']}\n"
-        f"   経過: {elapsed} / {user['unreplied_count']}件\n"
-        f"   「{snippet}」"
-    )
+def build_report_line(index: int, user: dict) -> str:
+    """1行: 受信日時 + 表示名（同一ユーザーは最古の未返信時刻）"""
+    received = format_received_at_jst(user["oldest_received_at"])
+    name = user.get("display_name") or user["user_id"]
+    return f"\n{index}. {received}  {name}"
 
 
 def split_into_messages(users: list[dict], now: datetime) -> list[str]:
@@ -112,7 +101,7 @@ def split_into_messages(users: list[dict], now: datetime) -> list[str]:
     current = header
 
     for i, user in enumerate(users, start=1):
-        block = build_user_block(i, user, now)
+        block = build_report_line(i, user)
         if len(current) + len(block) > LINE_TEXT_MAX_CHARS:
             messages.append(current)
             current = header + f"\n（続き {len(messages) + 1}）" + block
@@ -167,7 +156,10 @@ def main() -> None:
     now = datetime.now(JST)
 
     if is_skip_day(now):
-        print(f"本日({now.strftime('%Y/%m/%d')})は日曜日または祝日のためスキップします。")
+        print(
+            f"本日({now.strftime('%Y/%m/%d')})は日曜日または祝日のためスキップします。"
+            "休み明け最初の平日・非祝日の朝に、未返信をまとめてチェックします。"
+        )
         sys.exit(0)
 
     threshold = now - timedelta(hours=UNREPLIED_HOURS)

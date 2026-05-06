@@ -12,7 +12,7 @@
 | Supabase（PostgreSQL） | メッセージ保存・未返信集計（RPC） |
 | Edge Function `webhook-receiver` | LINE Webhook を受け取り DB に保存 |
 | Edge Function `send-reply` | 管理者からの返信（Push）と `replied` 更新 |
-| GitHub Actions（毎時） | `scripts/check_unreplied.py` で未返信を検知し管理者へ通知 |
+| GitHub Actions（毎朝 8:00 JST） | `scripts/check_unreplied.py` で未返信を検知し管理者へ通知 |
 
 ## 前提
 
@@ -66,6 +66,9 @@
    既に L-Step など別サービスが Webhook を使っている場合は **URL は1つだけ** のため、併用の可否を確認すること。
 
 4. **GitHub Actions**  
+   既定では **毎日 08:00（JST）** にワークフローが動く（cron は UTC の `0 23 * * *`）。  
+   **日曜・日本の祝日**はスクリプトが即終了し通知しない。連休後は **休み明け最初の平日・非祝日の朝** に、DB の状態を踏まえて通常どおり一括チェックする。
+
    Repository の Secrets に以下を登録する。
 
    | Secret | 説明 |
