@@ -1,0 +1,8 @@
+# Edge Functions: LINE / 独自 Bearer は Supabase の JWT を付けないため検証をオフにする
+# https://supabase.com/docs/guides/functions/function-configuration
+
+[functions.webhook-receiver]
+verify_jwt = false
+
+[functions.send-reply]
+verify_jwt = false

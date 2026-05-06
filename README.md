@@ -1,6 +1,6 @@
 # LINE 未返信通知（line-1dayrespons）
 
-お客様からの LINE メッセージが一定時間返信されていない場合に、**Messaging API（Push / Multicast）** で管理者へアラートを送る仕組みです。
+未返信通知機能 — お客様からの LINE メッセージが一定時間返信されていない場合に、**Messaging API（Push / Multicast）** で管理者へアラートを送る仕組みです。
 
 > **LINE Notify について**  
 > LINE Notify は 2025年3月31日をもって提供終了しました。本リポジトリの定期チェックは **Messaging API のチャネルアクセストークン** と **管理者のユーザーID** で通知します。
