@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>コンテキストエンジニアリング入門 — 新卒エンジニア向け図解</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d2e;
+      --surface2: #252840;
+      --accent: #7c6af7;
+      --accent2: #f77c6a;
+      --accent3: #6af7c0;
+      --accent4: #f7d06a;
+      --text: #e8eaf0;
+      --text-muted: #8b90a8;
+      --border: #2e3150;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 24px 16px 80px;
+    }
+    .container { max-width: 860px; margin: 0 auto; }
+
+    /* ===== HEADER ===== */
+    .hero {
+      text-align: center;
+      padding: 56px 24px 48px;
+      background: linear-gradient(135deg, #1a1d2e 0%, #252045 100%);
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      margin-bottom: 48px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -60px; left: -60px;
+      width: 260px; height: 260px;
+      background: radial-gradient(circle, rgba(124,106,247,0.18) 0%, transparent 70%);
+    }
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: -60px; right: -60px;
+      width: 220px; height: 220px;
+      background: radial-gradient(circle, rgba(247,124,106,0.15) 0%, transparent 70%);
+    }
+    .hero-tag {
+      display: inline-block;
+      background: rgba(124,106,247,0.2);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      padding: 4px 14px;
+      border-radius: 999px;
+      margin-bottom: 18px;
+      text-transform: uppercase;
+    }
+    .hero h1 {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, #c4bdff 0%, #a78bfa 50%, #f77c6a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 14px;
+    }
+    .hero p {
+      color: var(--text-muted);
+      font-size: 1rem;
+      max-width: 540px;
+      margin: 0 auto;
+    }
+    .hero-source {
+      margin-top: 16px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+    .hero-source a { color: var(--accent); text-decoration: none; }
+
+    /* ===== SECTION ===== */
+    .section {
+      margin-bottom: 48px;
+    }
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .section-num {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    /* ===== CARD ===== */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .badge-purple { background: rgba(124,106,247,0.25); color: #c4bdff; }
+    .badge-red    { background: rgba(247,124,106,0.25); color: #ffbdbd; }
+    .badge-green  { background: rgba(106,247,192,0.25); color: #a0f0d8; }
+    .badge-yellow { background: rgba(247,208,106,0.25); color: #ffe4a0; }
+
+    /* ===== ANALOGY BOX ===== */
+    .analogy {
+      background: linear-gradient(135deg, rgba(124,106,247,0.08), rgba(106,247,192,0.05));
+      border: 1px solid rgba(124,106,247,0.3);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-top: 16px;
+      position: relative;
+    }
+    .analogy::before {
+      content: '💡 たとえると…';
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    /* ===== DIAGRAM: CONTEXT WINDOW ===== */
+    .context-window-diagram {
+      border: 2px solid var(--accent);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 16px 0;
+    }
+    .cw-header {
+      background: var(--accent);
+      padding: 8px 16px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .cw-body {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    .cw-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.88rem;
+    }
+    .cw-row:last-child { border-bottom: none; }
+    .cw-icon { font-size: 1.2rem; width: 28px; text-align: center; flex-shrink: 0; }
+    .cw-label { font-weight: 600; width: 160px; flex-shrink: 0; }
+    .cw-desc { color: var(--text-muted); font-size: 0.82rem; }
+
+    /* ===== DIAGRAM: ATTENTION DECAY ===== */
+    .attention-bar-wrap {
+      margin: 20px 0;
+    }
+    .attention-bar-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .attention-bar-track {
+      height: 28px;
+      background: var(--surface2);
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      margin-bottom: 4px;
+    }
+    .ab-segment {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      transition: width 0.4s ease;
+    }
+
+    /* ===== DIAGRAM: COMPARISON TABLE ===== */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .compare-card {
+      background: var(--surface2);
+      border-radius: var(--radius);
+      padding: 18px;
+      border: 1px solid var(--border);
+    }
+    .compare-card h4 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .compare-card ul {
+      list-style: none;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+    .compare-card ul li {
+      padding: 4px 0;
+      display: flex;
+      gap: 6px;
+    }
+    .compare-card ul li::before { content: '→'; color: var(--accent); }
+
+    /* ===== DIAGRAM: FLOW ARROW ===== */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin: 16px 0;
+    }
+    .flow-step {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-align: center;
+      min-width: 100px;
+    }
+    .flow-arrow {
+      color: var(--accent);
+      font-size: 1.2rem;
+      padding: 0 6px;
+      flex-shrink: 0;
+    }
+
+    /* ===== DIAGRAM: 3-METHOD CARDS ===== */
+    .method-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin: 16px 0;
+    }
+    .method-card {
+      border-radius: var(--radius);
+      padding: 20px;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    .method-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+    .mc-purple::before { background: var(--accent); }
+    .mc-green::before  { background: var(--accent3); }
+    .mc-yellow::before { background: var(--accent4); }
+    .mc-purple { background: rgba(124,106,247,0.07); }
+    .mc-green  { background: rgba(106,247,192,0.07); }
+    .mc-yellow { background: rgba(247,208,106,0.07); }
+    .method-card h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 8px; }
+    .method-card p  { font-size: 0.82rem; color: var(--text-muted); line-height: 1.6; }
+    .method-card .emoji { font-size: 1.8rem; margin-bottom: 10px; display: block; }
+
+    /* ===== DIAGRAM: PROMPT ALTITUDE ===== */
+    .altitude-diagram {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin: 16px 0;
+    }
+    .alt-row {
+      display: flex;
+      align-items: center;
+      padding: 14px 18px;
+      gap: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .alt-row:last-child { border-bottom: none; }
+    .alt-icon { font-size: 1.4rem; width: 36px; text-align: center; }
+    .alt-label { font-weight: 700; font-size: 0.88rem; width: 160px; flex-shrink: 0; }
+    .alt-bar {
+      flex: 1;
+      height: 12px;
+      border-radius: 6px;
+    }
+    .alt-desc { font-size: 0.78rem; color: var(--text-muted); width: 200px; flex-shrink: 0; }
+    .alt-bad { background: #f77c6a; opacity: 0.7; }
+    .alt-good { background: linear-gradient(90deg, var(--accent), var(--accent3)); }
+
+    /* ===== SUMMARY BOX ===== */
+    .summary-box {
+      background: linear-gradient(135deg, rgba(124,106,247,0.12), rgba(106,247,192,0.08));
+      border: 1px solid rgba(124,106,247,0.4);
+      border-radius: var(--radius);
+      padding: 28px;
+      text-align: center;
+      margin-top: 48px;
+    }
+    .summary-box h2 {
+      font-size: 1.2rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+      color: #c4bdff;
+    }
+    .summary-box p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .big-quote {
+      font-size: clamp(1rem, 2.5vw, 1.3rem);
+      font-weight: 800;
+      color: var(--text);
+      margin: 16px 0;
+      line-height: 1.5;
+    }
+
+    /* ===== TOKEN PILLS ===== */
+    .token-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 12px 0;
+    }
+    .token {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .t-high { background: rgba(106,247,192,0.2); color: #a0f0d8; border: 1px solid rgba(106,247,192,0.3); }
+    .t-med  { background: rgba(124,106,247,0.2); color: #c4bdff; border: 1px solid rgba(124,106,247,0.3); }
+    .t-low  { background: rgba(247,124,106,0.2); color: #ffbdbd; border: 1px solid rgba(247,124,106,0.3); }
+
+    /* ===== HIGHLIGHT LINE ===== */
+    .highlight-line {
+      border-left: 3px solid var(--accent);
+      padding-left: 14px;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      margin: 12px 0;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 600px) {
+      .compare-grid { grid-template-columns: 1fr; }
+      .flow { flex-direction: column; align-items: stretch; }
+      .flow-arrow { transform: rotate(90deg); text-align: center; }
+      .alt-desc { display: none; }
+      .alt-label { width: 130px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-tag">Anthropic Engineering Blog 要約</div>
+    <h1>コンテキストエンジニアリング<br>入門ガイド</h1>
+    <p>AIエージェントを「賢く動かし続ける」ための情報管理術を<br>新卒エンジニアでもわかるように図解します</p>
+    <div class="hero-source">
+      元記事:
+      <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank">
+        Effective context engineering for AI agents — Anthropic (Sep 2025)
+      </a>
+    </div>
+  </div>
+
+  <!-- 1. そもそもコンテキストとは -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">1</div>
+      <div class="section-title">「コンテキスト」って何？</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🧠 AIが「今見えている情報」の全体</div>
+      <p style="font-size:0.88rem; color:var(--text-muted);">AIが回答を生成するとき、参照できる情報には <strong style="color:var(--text)">「コンテキストウィンドウ」</strong> という上限があります。その中に入っているすべての情報を <strong style="color:var(--text)">コンテキスト</strong> と呼びます。</p>
+
+      <div class="context-window-diagram" style="margin-top:16px;">
+        <div class="cw-header">📦 コンテキストウィンドウの中身</div>
+        <div class="cw-body">
+          <div class="cw-row">
+            <div class="cw-icon">⚙️</div>
+            <div class="cw-label">システムプロンプト</div>
+            <div class="cw-desc">「あなたはカスタマーサポートです」のような基本指示</div>
+          </div>
+          <div class="cw-row">
+            <div class="cw-icon">🔧</div>
+            <div class="cw-label">ツール定義</div>
+            <div class="cw-desc">AIが使える機能の説明（検索・計算など）</div>
+          </div>
+          <div class="cw-row">
+            <div class="cw-icon">📚</div>
+            <div class="cw-label">外部データ・RAG</div>
+            <div class="cw-desc">データベースや資料から取得した情報</div>
+          </div>
+          <div class="cw-row">
+            <div class="cw-icon">💬</div>
+            <div class="cw-label">会話履歴</div>
+            <div class="cw-desc">これまでのやりとり</div>
+          </div>
+          <div class="cw-row">
+            <div class="cw-icon">📋</div>
+            <div class="cw-label">ツール実行結果</div>
+            <div class="cw-desc">AIが呼び出したツールのアウトプット</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="analogy">
+        AIのコンテキストウィンドウは、<strong>試験の「持ち込み許可のカンニングペーパー</strong>」みたいなもの。<br>
+        スペースが決まっているので、何を書くか（＝何を渡すか）をうまく選ぶ必要があります。
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. プロンプトエンジニアリングとの違い -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">2</div>
+      <div class="section-title">プロンプトエンジニアリングとの違い</div>
+    </div>
+
+    <div class="card">
+      <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">AIの活用は「いい文章を書く」フェーズから「いい情報を選ぶ」フェーズへと進化しています。</p>
+
+      <div class="compare-grid">
+        <div class="compare-card" style="border-color: rgba(247,124,106,0.3);">
+          <h4>📝 プロンプトエンジニアリング <span class="badge badge-red">従来</span></h4>
+          <ul>
+            <li>一度きりの指示文を磨く</li>
+            <li>「どう書くか」が主役</li>
+            <li>単発タスク向け</li>
+            <li>例：ChatGPTへの質問の仕方</li>
+          </ul>
+        </div>
+        <div class="compare-card" style="border-color: rgba(124,106,247,0.3);">
+          <h4>🎛️ コンテキストエンジニアリング <span class="badge badge-purple">最新</span></h4>
+          <ul>
+            <li>毎ターン「何を渡すか」を管理</li>
+            <li>「何を見せるか」が主役</li>
+            <li>長期・連続タスク向け</li>
+            <li>例：AIエージェントの設計</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="flow">
+        <div class="flow-step">昔<br><span style="font-size:0.75rem; color:var(--text-muted)">良い文章を書く</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">今<br><span style="font-size:0.75rem; color:var(--text-muted)">情報を選んで渡す</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">将来<br><span style="font-size:0.75rem; color:var(--text-muted)">AIが自律管理</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. なぜ重要？コンテキスト劣化 -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">3</div>
+      <div class="section-title">なぜ重要？「コンテキスト劣化」問題</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📉 情報が増えると、AIの精度が落ちる</div>
+      <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+        コンテキストに詰め込む情報が多いほど、AIは<strong style="color:var(--accent2)">「コンテキスト劣化（Context Rot）」</strong>と呼ばれる現象を起こし、肝心な情報を見落とすようになります。
+      </p>
+
+      <!-- Attention bar diagram -->
+      <div class="attention-bar-wrap">
+        <div class="attention-bar-label">コンテキストが少ない（理想）</div>
+        <div class="attention-bar-track">
+          <div class="ab-segment" style="width:85%; background:linear-gradient(90deg,#6af7c0,#7c6af7); color:#fff;">集中力 85%</div>
+          <div class="ab-segment" style="width:15%; background:#2e3150; color:var(--text-muted);">余裕あり</div>
+        </div>
+
+        <div class="attention-bar-label" style="margin-top:12px;">コンテキストが多い（問題あり）</div>
+        <div class="attention-bar-track">
+          <div class="ab-segment" style="width:35%; background:linear-gradient(90deg,#f77c6a,#f7d06a); color:#fff;">集中力 35%</div>
+          <div class="ab-segment" style="width:65%; background:#1a1d2e; color:#555; font-size:0.65rem;">情報の海に溺れている…</div>
+        </div>
+      </div>
+
+      <div class="analogy">
+        人間でも「机の上に書類が山積みだと、肝心な資料を見つけられない」のと同じ。<br>
+        AIには <strong>「注意力の予算（Attention Budget）」</strong> があり、情報が増えるほど一つひとつに割ける集中力が減ります。<br>
+        <br>
+        技術的には、Transformerアーキテクチャはトークン数 n に対して <strong>n² の関係</strong> を計算するため、長くなると指数的に負荷が増えます。
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 良いコンテキストの作り方 -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">4</div>
+      <div class="section-title">良いコンテキストの作り方</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🎯 黄金ルール：<span style="color:var(--accent)">「小さくて・意味のある」情報だけ渡す</span></div>
+      <div class="highlight-line">
+        "find the smallest possible set of high-signal tokens that maximize the likelihood of some desired outcome"<br>
+        → 求める結果を最も引き出せる、できるだけ少ない「意味のある情報」を選べ。
+      </div>
+
+      <br>
+      <p style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">① システムプロンプトの「高度（Altitude）」を合わせる</p>
+
+      <div class="altitude-diagram">
+        <div class="alt-row" style="background: rgba(247,124,106,0.05);">
+          <div class="alt-icon">❌</div>
+          <div class="alt-label">細かすぎ</div>
+          <div class="alt-bar alt-bad" style="width: 100%; height:12px; border-radius:6px; flex:1;"></div>
+          <div class="alt-desc">「もし〜なら、〜して、〜でなければ…」と if-else で埋め尽くす → 壊れやすい</div>
+        </div>
+        <div class="alt-row" style="background: rgba(106,247,192,0.07);">
+          <div class="alt-icon">✅</div>
+          <div class="alt-label">ちょうどよい</div>
+          <div class="alt-bar alt-good" style="width: 60%; height:12px; border-radius:6px; flex:1;"></div>
+          <div class="alt-desc">具体的すぎず、曖昧すぎず。AIが自分で判断できる余白を残す</div>
+        </div>
+        <div class="alt-row" style="background: rgba(247,124,106,0.05);">
+          <div class="alt-icon">❌</div>
+          <div class="alt-label">曖昧すぎ</div>
+          <div class="alt-bar alt-bad" style="width: 20%; height:12px; border-radius:6px; flex:1;"></div>
+          <div class="alt-desc">「いい感じにやって」— 共通認識を勝手に仮定している → 迷子になる</div>
+        </div>
+      </div>
+
+      <br>
+      <p style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">② トークンの「価値」で仕分けする</p>
+      <div class="token-row">
+        <span class="token t-high">✓ 目標・ゴール</span>
+        <span class="token t-high">✓ 具体的なルール</span>
+        <span class="token t-high">✓ 良いサンプル例</span>
+        <span class="token t-med">△ ツールの説明</span>
+        <span class="token t-med">△ 必要な会話履歴</span>
+        <span class="token t-low">✗ 重複した情報</span>
+        <span class="token t-low">✗ 古いツール実行結果</span>
+        <span class="token t-low">✗ 使わないサンプル</span>
+      </div>
+
+      <br>
+      <p style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">③ ツールは「少なく・明確に」</p>
+      <div class="highlight-line">
+        ツールが多すぎると「どれを使えばいいか」AIが迷います。人間のエンジニアが「この状況でどのツールを使うか」を即答できるレベルまで整理しましょう。
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Just-in-Time 戦略 -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">5</div>
+      <div class="section-title">「必要になったら取得」Just-in-Time 戦略</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📂 事前に全部渡さない。参照先だけ持っておく</div>
+      <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+        RAG（事前検索して情報を埋め込む）に加え、最近は AIエージェント自身が実行中に必要な情報を「ちょうどいいタイミングで」取りに行く方法が主流になっています。
+      </p>
+
+      <div class="flow">
+        <div class="flow-step">軽量な<br>参照情報だけ保持<br><span style="font-size:0.7rem;color:var(--text-muted)">ファイルパス・URL</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">必要に応じて<br>ツールで取得<br><span style="font-size:0.7rem;color:var(--text-muted)">glob / grep / API</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">必要な部分だけ<br>コンテキストへ<br><span style="font-size:0.7rem;color:var(--text-muted)">最小限の情報</span></div>
+      </div>
+
+      <div class="analogy">
+        「教科書を丸ごと暗記する」のではなく、<strong>「索引と本棚の場所を覚えておいて、必要なページだけ開く」</strong> イメージ。<br>
+        Claude Code（Anthropicのコーディングエージェント）はこの方式で巨大なコードベースを分析しています。
+      </div>
+
+      <div style="margin-top:16px; padding:14px 16px; background:var(--surface2); border-radius:8px; font-size:0.82rem; color:var(--text-muted);">
+        <strong style="color:var(--text);">ハイブリッド戦略：</strong>
+        速さが必要な情報は事前取得（RAG）、深掘りが必要な情報はエージェントが自律探索。
+        両方を組み合わせるのが現在のベストプラクティスです。
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 長期タスクの3つのテクニック -->
+  <div class="section">
+    <div class="section-label">
+      <div class="section-num">6</div>
+      <div class="section-title">長期タスクを乗り越える3つのテクニック</div>
+    </div>
+
+    <div class="card">
+      <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:16px;">
+        何時間もかかるタスク（大規模コード移行・調査プロジェクトなど）では、コンテキストウィンドウが溢れる問題が起きます。それを解決する3つの手法があります。
+      </p>
+
+      <div class="method-grid">
+        <div class="method-card mc-purple">
+          <span class="emoji">🗜️</span>
+          <h4>① コンパクション<br><span style="font-size:0.75rem; color:var(--text-muted); font-weight:400;">Compaction</span></h4>
+          <p>会話が長くなったら、AIに「ここまでの要点をまとめて」と頼んで、新しい短い会話として再スタート。重要な決定事項・バグ・実装の詳細だけ残し、不要なログは捨てる。</p>
+        </div>
+        <div class="method-card mc-green">
+          <span class="emoji">📓</span>
+          <h4>② 構造化メモ書き<br><span style="font-size:0.75rem; color:var(--text-muted); font-weight:400;">Structured Note-taking</span></h4>
+          <p>AIが自分で「NOTES.md」や「TODO.md」に進捗・学習・方針を書いておき、コンテキストがリセットされても読み返せる「外部記憶」として活用する。</p>
+        </div>
+        <div class="method-card mc-yellow">
+          <span class="emoji">🤝</span>
+          <h4>③ マルチエージェント<br><span style="font-size:0.75rem; color:var(--text-muted); font-weight:400;">Sub-agent Architecture</span></h4>
+          <p>1つのAIが全部やらず、専門AIを複数起動。各サブエージェントが深掘りして「1,000〜2,000トークンの要約」だけ親AIに返す。分業でコンテキストを節約。</p>
+        </div>
+      </div>
+
+      <!-- When to use -->
+      <div style="margin-top:16px;">
+        <p style="font-size:0.85rem; font-weight:700; margin-bottom:10px; color:var(--text-muted);">使い分けの目安</p>
+        <div style="display:flex; flex-direction:column; gap:8px; font-size:0.82rem;">
+          <div style="display:flex; align-items:center; gap:10px; background:rgba(124,106,247,0.08); padding:10px 14px; border-radius:8px;">
+            <span>🗜️</span>
+            <span><strong>コンパクション</strong> — 会話が長くなる双方向タスク（チャットボット・対話型作業）</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; background:rgba(106,247,192,0.08); padding:10px 14px; border-radius:8px;">
+            <span>📓</span>
+            <span><strong>メモ書き</strong> — マイルストーンが明確な反復開発（機能実装・テスト）</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; background:rgba(247,208,106,0.08); padding:10px 14px; border-radius:8px;">
+            <span>🤝</span>
+            <span><strong>マルチエージェント</strong> — 並列調査が活きる複雑な研究・分析</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="summary-box">
+    <h2>🎓 まとめ：新卒エンジニアへのメッセージ</h2>
+    <div class="big-quote">
+      「AIに渡す情報を、<br>どう選ぶかが、<br>エンジニアリングの新しい腕の見せどころ」
+    </div>
+    <p>
+      AIエージェントを使う現場では「プロンプトを上手く書く」だけでは不十分になってきました。<br>
+      コンテキストウィンドウという<strong>有限なリソース</strong>をどう設計・管理するかが、
+      AI活用の品質を左右します。<br><br>
+      <strong>コンテキストエンジニアリングの3原則：</strong><br>
+      ① 情報は小さく・意味のあるものだけ渡す<br>
+      ② 必要な情報は都度取得させる<br>
+      ③ 長期タスクは「圧縮・メモ・分業」で乗り越える
+    </p>
+  </div>
+
+</div>
+</body>
+</html>
