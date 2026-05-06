@@ -80,6 +80,14 @@
 
    任意: Repository Variables で `UNREPLIED_HOURS` / `RE_NOTIFY_HOURS` を上書き可能（ワークフロー参照）。
 
+   **テスト送信（例外）**  
+   Actions の **Run workflow** で **`force_report_test`** にチェックを入れて実行すると、`FORCE_REPORT_TEST` が有効になります。  
+   - 日曜・祝日でもスキップしない  
+   - 未返信対象が **0件** でも、現行と同じ体裁のヘッダでテスト用 LINE を 1 通送る（`notification_log` は更新しない）  
+   - 対象があるときは通常どおり送り、`【テスト送信】` を先頭に付ける  
+
+   ローカルでは `FORCE_REPORT_TEST=true` を付けて `python scripts/check_unreplied.py` でも同様。
+
 ## 管理者のユーザーID（`ADMIN_NOTIFY_USER_IDS`）
 
 管理者が **公式アカウントを友だち追加**し、ボットにメッセージを送る。  

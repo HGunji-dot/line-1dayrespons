@@ -7,6 +7,12 @@ on:
     - cron: '0 23 * * *'
   # 手動実行も可能（テスト用）
   workflow_dispatch:
+    inputs:
+      force_report_test:
+        description: 'テスト送信（日曜・祝日も実行。対象0件でも同じ体裁でLINEを送る）'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   check:
@@ -33,6 +39,8 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           ADMIN_NOTIFY_USER_IDS: ${{ secrets.ADMIN_NOTIFY_USER_IDS }}
+          # 手動実行時のみ true（schedule では inputs が空になり false 相当）
+          FORCE_REPORT_TEST: ${{ github.event.inputs.force_report_test || 'false' }}
           # 任意: 未返信とみなす時間数（デフォルト24）
           UNREPLIED_HOURS: ${{ vars.UNREPLIED_HOURS || '24' }}
           # 任意: 同じユーザーへの再通知間隔（デフォルト24時間）

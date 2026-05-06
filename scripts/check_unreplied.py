@@ -10,6 +10,7 @@ GitHub Actions から **毎朝 8:00（JST）** に実行される想定。
   （LINE Notify は 2025/3/31 終了のため未使用）
 - 送信後に notification_log へ記録（次回の重複通知を防ぐ）
 - 1通あたりの文字数上限を超える場合は複数回に分けて送信する
+- 環境変数 FORCE_REPORT_TEST: 真のとき日曜・祝日スキップを無視。対象0件でも現行フォーマットでテストLINEを送る（notification_log は更新しない）
 """
 
 import os
@@ -33,6 +34,10 @@ LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
 LINE_MULTICAST_URL = "https://api.line.me/v2/bot/message/multicast"
 # Messaging API テキストメッセージ上限 5000 文字（マージンを取る）
 LINE_TEXT_MAX_CHARS = 4500
+
+
+def env_truthy(key: str) -> bool:
+    return os.getenv(key, "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def is_skip_day(now: datetime) -> bool:
@@ -78,9 +83,10 @@ def format_received_at_jst(received_at_str: str) -> str:
     return received_at.astimezone(JST).strftime("%Y/%m/%d %H:%M")
 
 
-def build_header(user_count: int, now: datetime) -> str:
+def build_header(user_count: int, now: datetime, *, force_test: bool = False) -> str:
+    tag = "【テスト送信】" if force_test else ""
     return (
-        f"\n【未返信アラート】{now.strftime('%Y/%m/%d %H:%M')} JST\n"
+        f"\n{tag}【未返信アラート】{now.strftime('%Y/%m/%d %H:%M')} JST\n"
         f"{UNREPLIED_HOURS}時間以上返信がないお客様: {user_count} 件\n"
         "（最古の未返信メッセージの受信日時・表示名）\n"
         + "─" * 24
@@ -94,9 +100,11 @@ def build_report_line(index: int, user: dict) -> str:
     return f"\n{index}. {received}  {name}"
 
 
-def split_into_messages(users: list[dict], now: datetime) -> list[str]:
+def split_into_messages(
+    users: list[dict], now: datetime, *, force_test: bool = False
+) -> list[str]:
     """Messaging API のテキスト1通あたりの上限に収まるよう分割する。"""
-    header = build_header(len(users), now)
+    header = build_header(len(users), now, force_test=force_test)
     messages: list[str] = []
     current = header
 
@@ -112,6 +120,13 @@ def split_into_messages(users: list[dict], now: datetime) -> list[str]:
         messages.append(current)
 
     return messages
+
+
+def build_empty_test_report(now: datetime, *, force_test: bool) -> str:
+    """対象0件時のテスト用本文（notification_log は更新しない）"""
+    body = build_header(0, now, force_test=force_test)
+    body += "\n\n（テスト送信です。条件を満たす未返信ユーザーはありません。）"
+    return body
 
 
 def parse_admin_notify_user_ids() -> list[str]:
@@ -154,8 +169,12 @@ def send_line_push_multicast(recipient_ids: list[str], text: str) -> None:
 
 def main() -> None:
     now = datetime.now(JST)
+    force_test = env_truthy("FORCE_REPORT_TEST")
 
-    if is_skip_day(now):
+    if force_test:
+        print("FORCE_REPORT_TEST 有効: 日曜・祝日スキップを行いません（テスト用）。")
+
+    if not force_test and is_skip_day(now):
         print(
             f"本日({now.strftime('%Y/%m/%d')})は日曜日または祝日のためスキップします。"
             "休み明け最初の平日・非祝日の朝に、未返信をまとめてチェックします。"
@@ -174,11 +193,16 @@ def main() -> None:
 
     if not users:
         print("通知対象のお客様はいません（未返信なし、または通知済み）。")
+        if force_test:
+            admin_ids = parse_admin_notify_user_ids()
+            msg = build_empty_test_report(now, force_test=True)
+            send_line_push_multicast(admin_ids, msg)
+            print("テスト用 LINE Push を送信しました（0件・notification_log は未更新）。")
         sys.exit(0)
 
     print(f"通知対象ユーザー: {len(users)}件")
     admin_ids = parse_admin_notify_user_ids()
-    messages = split_into_messages(users, now)
+    messages = split_into_messages(users, now, force_test=force_test)
 
     for i, msg in enumerate(messages, start=1):
         send_line_push_multicast(admin_ids, msg)
