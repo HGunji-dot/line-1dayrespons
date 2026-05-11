@@ -12,3 +12,9 @@ verify_jwt = false
 
 [functions.upload-image]
 verify_jwt = false
+
+[functions.save-note]
+verify_jwt = false
+
+[functions.mark-replied]
+verify_jwt = false

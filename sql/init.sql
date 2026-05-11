@@ -120,3 +120,32 @@ AS $$
     DELETE FROM notification_log
     WHERE user_id = target_user_id;
 $$;
+
+-- ─────────────────────────────────────────────
+-- 6. admin_notes テーブル
+--    管理者がお客様ごとにつける社内メモ。
+--    返信済みになっても削除しない（次回以降も参照できる）。
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS admin_notes (
+    user_id    TEXT        PRIMARY KEY,
+    note       TEXT        NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ─────────────────────────────────────────────
+-- 7. upsert_admin_note 関数
+--    メモの作成・更新を1操作で行う。
+-- ─────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION upsert_admin_note(
+    target_user_id TEXT,
+    new_note       TEXT
+)
+RETURNS VOID
+LANGUAGE sql
+AS $$
+    INSERT INTO admin_notes (user_id, note, updated_at)
+    VALUES (target_user_id, new_note, NOW())
+    ON CONFLICT (user_id) DO UPDATE
+        SET note       = EXCLUDED.note,
+            updated_at = NOW();
+$$;
