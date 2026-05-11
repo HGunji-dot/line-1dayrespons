@@ -23,6 +23,10 @@ const LINE_CHANNEL_ACCESS_TOKEN = Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN")!;
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET")!;
 
 Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders() });
+  }
+
   if (req.method !== "POST") {
     return json({ error: "Method Not Allowed" }, 405);
   }
@@ -94,9 +98,17 @@ Deno.serve(async (req: Request) => {
   return json({ success: true, userId, message });
 });
 
+function corsHeaders(): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...corsHeaders() },
   });
 }
