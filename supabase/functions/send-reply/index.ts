@@ -9,7 +9,9 @@
  *   POST /functions/v1/send-reply
  *   Authorization: Bearer <ADMIN_SECRET>
  *   Content-Type: application/json
- *   { "userId": "Uxxxxxxxxx", "message": "お問い合わせありがとうございます。" }
+ *   { "userId": "Uxxxxxxxxx", "message": "テキスト", "imageUrl": "https://..." }
+ *
+ * message / imageUrl はどちらか一方のみでも可（両方指定時は別メッセージとして順に送信）
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -37,29 +39,47 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Unauthorized" }, 401);
   }
 
-  let body: { userId?: string; message?: string };
+  let body: { userId?: string; message?: string; imageUrl?: string };
   try {
     body = await req.json();
   } catch {
     return json({ error: "Invalid JSON" }, 400);
   }
 
-  const { userId, message } = body;
-  if (!userId || !message) {
-    return json({ error: "userId and message are required" }, 400);
+  const { userId, message, imageUrl } = body;
+  if (!userId) {
+    return json({ error: "userId is required" }, 400);
+  }
+  if (!message && !imageUrl) {
+    return json({ error: "message or imageUrl is required" }, 400);
   }
 
-  // 1. LINE Push API でメッセージ送信
+  // 1. LINE へ送信するメッセージオブジェクトを構築
+  //    テキストと画像はそれぞれ別メッセージ（最大5件まで一括送信可能）
+  type LineMessage =
+    | { type: "text"; text: string }
+    | { type: "image"; originalContentUrl: string; previewImageUrl: string };
+
+  const lineMessages: LineMessage[] = [];
+  if (message) {
+    lineMessages.push({ type: "text", text: message });
+  }
+  if (imageUrl) {
+    lineMessages.push({
+      type: "image",
+      originalContentUrl: imageUrl,
+      previewImageUrl: imageUrl,
+    });
+  }
+
+  // 2. LINE Push API でメッセージ送信
   const lineRes = await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
     },
-    body: JSON.stringify({
-      to: userId,
-      messages: [{ type: "text", text: message }],
-    }),
+    body: JSON.stringify({ to: userId, messages: lineMessages }),
   });
 
   if (!lineRes.ok) {
@@ -70,11 +90,11 @@ Deno.serve(async (req: Request) => {
 
   const messageId = `push-${Date.now()}-${userId}`;
 
-  // 2. outbound メッセージを DB に記録
+  // 3. outbound メッセージを DB に記録（テキストがあればその内容、なければ画像URLを記録）
   const { error: insertError } = await supabase.from("messages").insert({
     user_id: userId,
     message_id: messageId,
-    text: message,
+    text: message ?? imageUrl ?? "",
     direction: "outbound",
     received_at: new Date().toISOString(),
     replied: true,
@@ -85,7 +105,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "DB insert failed" }, 500);
   }
 
-  // 3. このユーザーの未返信 inbound を一括で replied=true にする
+  // 4. このユーザーの未返信 inbound を一括で replied=true にする
   const { error: rpcError } = await supabase.rpc("mark_user_replied", {
     target_user_id: userId,
   });
@@ -95,7 +115,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Failed to update replied status" }, 500);
   }
 
-  return json({ success: true, userId, message });
+  return json({ success: true, userId, message, imageUrl });
 });
 
 function corsHeaders(): Record<string, string> {

@@ -9,3 +9,6 @@ verify_jwt = false
 
 [functions.get-unreplied]
 verify_jwt = false
+
+[functions.upload-image]
+verify_jwt = false
