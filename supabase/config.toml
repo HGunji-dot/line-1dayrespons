@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.send-reply]
 verify_jwt = false
+
+[functions.get-unreplied]
+verify_jwt = false
