@@ -12,13 +12,14 @@
 | Supabase（PostgreSQL） | メッセージ保存・未返信集計（RPC） |
 | Edge Function `webhook-receiver` | LINE Webhook を受け取り DB に保存 |
 | Edge Function `send-reply` | 管理者からの返信（Push）と `replied` 更新 |
-| GitHub Actions（毎朝 8:00 JST） | `scripts/check_unreplied.py` で未返信を検知し管理者へ通知 |
+| Edge Function `check-unreplied-notify` | 外部スケジューラーから呼ばれ未返信を検知し管理者へ通知 |
+| cron-job.org（外部スケジューラー） | 平日 15:00 JST に `check-unreplied-notify` を HTTP POST で呼び出す |
 
 ## 前提
 
 - Supabase プロジェクト
 - LINE Developers の **Messaging API** チャネル（チャネルシークレット・アクセストークン）
-- GitHub リポジトリ（Actions 用）
+- [cron-job.org](https://cron-job.org/) アカウント（外部スケジューラー）
 
 ## セットアップ概要
 
@@ -39,8 +40,10 @@
    | 名前 | 用途 |
    |------|------|
    | `LINE_CHANNEL_SECRET` | Webhook 署名検証（`webhook-receiver`） |
-   | `LINE_CHANNEL_ACCESS_TOKEN` | プロフィール取得・Push（両 Function） |
+   | `LINE_CHANNEL_ACCESS_TOKEN` | プロフィール取得・Push（各 Function） |
    | `ADMIN_SECRET` | `send-reply` の `Authorization: Bearer ...` との照合 |
+   | `NOTIFY_SECRET` | `check-unreplied-notify` の Bearer 認証用（**未設定だと全リクエストが 401 になるため必須**） |
+   | `ADMIN_NOTIFY_USER_IDS` | 未返信通知を受け取る管理者の LINE ユーザーID（`U...`）。複数はカンマ区切り |
 
    **CLI の認証（どちらか一方）**
 
@@ -55,38 +58,35 @@
    npx supabase@latest secrets set --project-ref <project-ref> \
      LINE_CHANNEL_SECRET=<チャネルシークレット> \
      LINE_CHANNEL_ACCESS_TOKEN=<チャネルアクセストークン> \
-     ADMIN_SECRET=<send-reply 用の長いランダム文字列>
+     ADMIN_SECRET=<send-reply 用の長いランダム文字列> \
+     NOTIFY_SECRET=<check-unreplied-notify 用の長いランダム文字列> \
+     ADMIN_NOTIFY_USER_IDS=<管理者の LINE ユーザーID（複数はカンマ区切り）>
 
    npx supabase@latest functions deploy webhook-receiver --project-ref <project-ref>
    npx supabase@latest functions deploy send-reply --project-ref <project-ref>
+   npx supabase@latest functions deploy check-unreplied-notify --project-ref <project-ref>
    ```
 
-3. **LINE Webhook**  
+3. **cron-job.org（外部スケジューラー）の設定**
+
+   [cron-job.org](https://cron-job.org/) にログインし、新規ジョブを以下の内容で作成する。
+
+   | 項目 | 設定値 |
+   |------|--------|
+   | URL | `https://<project-ref>.supabase.co/functions/v1/check-unreplied-notify` |
+   | Method | POST |
+   | Header | `Authorization: Bearer <NOTIFY_SECRET の値>` |
+   | Schedule | 月〜金 06:00 UTC（= 15:00 JST）|
+
+   > **注意**: `NOTIFY_SECRET` を Supabase Secrets に設定した値と**完全一致**させること。  
+   > 異なる場合は 401 Unauthorized となり通知されない。
+
+   **テスト送信**（設定確認用）  
+   ボディに `{"force_test": true}` を付けて手動実行すると、日曜・祝日でも強制送信される（`notification_log` は更新しない）。
+
+4. **LINE Webhook**  
    Messaging API の Webhook URL を `webhook-receiver` の URL に設定する。  
    既に L-Step など別サービスが Webhook を使っている場合は **URL は1つだけ** のため、併用の可否を確認すること。
-
-4. **GitHub Actions**  
-   既定では **毎日 08:00（JST）** にワークフローが動く（cron は UTC の `0 23 * * *`）。  
-   **日曜・日本の祝日**はスクリプトが即終了し通知しない。連休後は **休み明け最初の平日・非祝日の朝** に、DB の状態を踏まえて通常どおり一括チェックする。
-
-   Repository の Secrets に以下を登録する。
-
-   | Secret | 説明 |
-   |--------|------|
-   | `SUPABASE_URL` | プロジェクト URL |
-   | `SUPABASE_KEY` | **service_role**（秘密鍵。クライアントに載せない） |
-   | `LINE_CHANNEL_ACCESS_TOKEN` | 定期チェックから Push する際に使用 |
-   | `ADMIN_NOTIFY_USER_IDS` | 通知先の LINE ユーザーID（`U...`）。複数はカンマ区切り |
-
-   任意: Repository Variables で `UNREPLIED_HOURS` / `RE_NOTIFY_HOURS` を上書き可能（ワークフロー参照）。
-
-   **テスト送信（例外）**  
-   Actions の **Run workflow** で **`force_report_test`** にチェックを入れて実行すると、`FORCE_REPORT_TEST` が有効になります。  
-   - 日曜・祝日でもスキップしない  
-   - 未返信対象が **0件** でも、現行と同じ体裁のヘッダでテスト用 LINE を 1 通送る（`notification_log` は更新しない）  
-   - 対象があるときは通常どおり送り、`【テスト送信】` を先頭に付ける  
-
-   ローカルでは `FORCE_REPORT_TEST=true` を付けて `python scripts/check_unreplied.py` でも同様。
 
 ## 管理者のユーザーID（`ADMIN_NOTIFY_USER_IDS`）
 
