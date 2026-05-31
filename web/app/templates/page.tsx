@@ -62,10 +62,8 @@ function TemplatesInner() {
     setTemplates((prev) => prev.filter((t) => t.id !== id));
 
   return (
-    <div className="flex h-screen flex-col">
-      <AppHeader />
-      <div className="flex min-h-0 flex-1">
-        {/* 左：タグ一覧 */}
+    <div className="flex min-h-0 flex-1">
+      {/* 左：タグ一覧 */}
         <aside className="flex w-64 shrink-0 flex-col border-r bg-card">
           <div className="border-b px-4 py-3">
             <h2 className="text-sm font-semibold">タグ</h2>
@@ -164,7 +162,6 @@ function TemplatesInner() {
           </ScrollArea>
         </main>
       </div>
-    </div>
   );
 }
 
@@ -239,8 +236,17 @@ function TemplateCard({
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">読み込み中…</div>}>
-      <TemplatesInner />
-    </Suspense>
+    <div className="flex h-screen flex-col">
+      <AppHeader />
+      <Suspense
+        fallback={
+          <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
+            読み込み中…
+          </div>
+        }
+      >
+        <TemplatesInner />
+      </Suspense>
+    </div>
   );
 }
