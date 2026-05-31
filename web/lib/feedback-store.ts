@@ -37,6 +37,12 @@ export function setCorrectedReply(id: string, correctedReply: string) {
   emit();
 }
 
+/** アーカイブ（学習ログから外す）/ 解除 */
+export function setFeedbackArchived(id: string, archived: boolean) {
+  state = state.map((f) => (f.id === id ? { ...f, archived } : f));
+  emit();
+}
+
 /**
  * 蓄積された「正解返信データ」（フェーズCでRAGの教師データになる）。
  * 承認したものは送信文を、却下して修正したものは修正文を正解とする。

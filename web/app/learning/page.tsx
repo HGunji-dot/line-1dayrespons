@@ -10,11 +10,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar } from "@/components/ui/avatar";
 import { DiffView, DiffLegend } from "@/components/diff-view";
-import { useFeedback, setFeedbackStatus, setCorrectedReply } from "@/lib/feedback-store";
+import {
+  useFeedback,
+  setFeedbackStatus,
+  setCorrectedReply,
+  setFeedbackArchived,
+} from "@/lib/feedback-store";
 import type { ReplyFeedback } from "@/lib/feedback-data";
 import { editRatePct } from "@/lib/diff";
-import { formatClock } from "@/lib/utils";
-import { Check, X, Pencil, TrendingUp, UserCheck } from "lucide-react";
+import { cn, formatClock } from "@/lib/utils";
+import { Check, X, Pencil, TrendingUp, UserCheck, Archive, ArchiveRestore } from "lucide-react";
 
 // この閾値を超えるタグは「テンプレ改善提案」を出す
 const IMPROVE_THRESHOLD = 25;
@@ -27,11 +32,15 @@ function editRateBadgeVariant(rate: number): "success" | "warning" | "danger" {
 
 export default function LearningPage() {
   const feedback = useFeedback();
+  const [showArchived, setShowArchived] = React.useState(false);
+  // アーカイブは既定で学習ログから隠す（承認/却下では消えず、アーカイブで消える）
+  const visible = showArchived ? feedback : feedback.filter((f) => !f.archived);
+  const archivedCount = feedback.filter((f) => f.archived).length;
 
-  // タグ別の平均編集率を集計
+  // タグ別の平均編集率を集計（表示中のものを対象）
   const tagStats = React.useMemo(() => {
     const map = new Map<string, { total: number; count: number }>();
-    for (const f of feedback) {
+    for (const f of visible) {
       const rate = editRatePct(f.generated, f.sent);
       for (const tag of f.tags) {
         const cur = map.get(tag) ?? { total: 0, count: 0 };
@@ -43,15 +52,15 @@ export default function LearningPage() {
     return Array.from(map.entries())
       .map(([tag, v]) => ({ tag, avg: Math.round(v.total / v.count), count: v.count }))
       .sort((a, b) => b.avg - a.avg);
-  }, [feedback]);
+  }, [visible]);
 
-  const total = feedback.length;
-  const pending = feedback.filter((f) => f.status === "pending").length;
-  const approved = feedback.filter((f) => f.status === "approved").length;
+  const total = visible.length;
+  const pending = visible.filter((f) => f.status === "pending").length;
+  const approved = visible.filter((f) => f.status === "approved").length;
   const avgEdit =
     total === 0
       ? 0
-      : Math.round(feedback.reduce((s, f) => s + editRatePct(f.generated, f.sent), 0) / total);
+      : Math.round(visible.reduce((s, f) => s + editRatePct(f.generated, f.sent), 0) / total);
 
   return (
     <div className="flex h-screen flex-col">
@@ -117,16 +126,35 @@ export default function LearningPage() {
             </CardContent>
           </Card>
 
-          {/* フィードバック一覧（差分＋承認） */}
+          {/* フィードバック一覧（差分＋承認/却下＋アーカイブ） */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">送信ログ（AI下書き → 送信文 の差分）</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-semibold">送信ログ（AI下書き → 送信文 の差分）</h2>
+                {archivedCount > 0 && (
+                  <button
+                    onClick={() => setShowArchived((v) => !v)}
+                    className={cn(
+                      "inline-flex items-center gap-1 whitespace-nowrap text-[11px] transition-colors",
+                      showArchived ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Archive className="h-3 w-3" />
+                    {showArchived ? "アーカイブを隠す" : "アーカイブを表示"}（{archivedCount}）
+                  </button>
+                )}
+              </div>
               <DiffLegend />
             </div>
 
-            {feedback.map((f) => (
+            {visible.map((f) => (
               <FeedbackEntry key={f.id} f={f} />
             ))}
+            {visible.length === 0 && (
+              <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                表示するログがありません。
+              </p>
+            )}
           </div>
         </div>
       </ScrollArea>
@@ -219,19 +247,20 @@ function FeedbackEntry({ f }: { f: ReplyFeedback }) {
           </div>
         )}
 
-        {f.status === "pending" ? (
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setFeedbackStatus(f.id, "rejected")}>
-              <X className="h-4 w-4" />
-              却下
-            </Button>
-            <Button variant="line" size="sm" onClick={() => setFeedbackStatus(f.id, "approved")}>
-              <Check className="h-4 w-4" />
-              良い例として承認（学習に追加）
-            </Button>
-          </div>
-        ) : (
-          <div className="flex justify-end">
+        {/* 承認/却下は状態を変えるだけ。学習ログから消すにはアーカイブを押す。 */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {f.status === "pending" ? (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setFeedbackStatus(f.id, "rejected")}>
+                <X className="h-4 w-4" />
+                却下
+              </Button>
+              <Button variant="line" size="sm" onClick={() => setFeedbackStatus(f.id, "approved")}>
+                <Check className="h-4 w-4" />
+                承認（学習に追加）
+              </Button>
+            </>
+          ) : (
             <Button
               variant="ghost"
               size="sm"
@@ -240,8 +269,19 @@ function FeedbackEntry({ f }: { f: ReplyFeedback }) {
             >
               承認状態を戻す
             </Button>
-          </div>
-        )}
+          )}
+          {f.archived ? (
+            <Button variant="outline" size="sm" onClick={() => setFeedbackArchived(f.id, false)}>
+              <ArchiveRestore className="h-4 w-4" />
+              アーカイブ解除
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setFeedbackArchived(f.id, true)}>
+              <Archive className="h-4 w-4" />
+              アーカイブ
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

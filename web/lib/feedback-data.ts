@@ -16,6 +16,7 @@ export interface ReplyFeedback {
   correctedReply?: string; // 却下時に人が入力した「正しい返信文」（正解として蓄積）
   createdAt: string; // ISO
   status: FeedbackStatus; // 承認状態（人が判断）
+  archived?: boolean; // アーカイブ（承認/却下では消えず、これで学習ログから外す）
 }
 
 // 学習ログを最初から賑やかにするためのシード（編集率の大小をばらつかせている）
