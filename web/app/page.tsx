@@ -25,7 +25,7 @@ export default function Page() {
 
   // 送信（モック）：未返信フラグを解除し、送信メッセージを履歴に追加。
   // さらに AI下書き(generated) と 送信文(sent) を学習フィードバックとして記録する。
-  const handleSend = (userId: string, text: string, generated: string) => {
+  const handleSend = (userId: string, text: string, generated: string, operator: string) => {
     const conv = conversations.find((c) => c.userId === userId);
     const now = new Date().toISOString();
     if (conv) {
@@ -37,6 +37,7 @@ export default function Page() {
         inboundText: conv.messages.find((m) => m.direction === "inbound")?.text ?? "",
         generated,
         sent: text,
+        operator,
         createdAt: now,
         status: "pending",
       });
@@ -49,6 +50,7 @@ export default function Page() {
           unrepliedCount: 0,
           elapsedLabel: "返信済み",
           lastMessageAt: now,
+          handlingBy: null, // 対応完了したのでクレームを解放
           messages: [
             ...c.messages.map((m) => ({ ...m, replied: true })),
             {
@@ -61,10 +63,20 @@ export default function Page() {
               receivedAt: now,
               replied: true,
               repliedAt: now,
+              operator,
             },
           ],
         };
       })
+    );
+  };
+
+  // 対応開始：未対応の会話を自分（operator）のものとして確保する
+  const handleClaim = (userId: string, operator: string) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.userId === userId && !c.handlingBy ? { ...c, handlingBy: operator } : c
+      )
     );
   };
 
@@ -99,7 +111,12 @@ export default function Page() {
 
           {/* ④ 返信ドラフト */}
           <ResizablePanel defaultSize={23} minSize={18} className="bg-card">
-            <ReplyDraft key={selected?.userId ?? "none"} conversation={selected} onSend={handleSend} />
+            <ReplyDraft
+              key={selected?.userId ?? "none"}
+              conversation={selected}
+              onSend={handleSend}
+              onClaim={handleClaim}
+            />
           </ResizablePanel>
         </ResizablePanelGroup>
       </main>

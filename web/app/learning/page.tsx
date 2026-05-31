@@ -12,7 +12,7 @@ import { DiffView, DiffLegend } from "@/components/diff-view";
 import { useFeedback, setFeedbackStatus } from "@/lib/feedback-store";
 import { editRatePct } from "@/lib/diff";
 import { formatClock } from "@/lib/utils";
-import { Check, X, Pencil, TrendingUp } from "lucide-react";
+import { Check, X, Pencil, TrendingUp, UserCheck } from "lucide-react";
 
 // この閾値を超えるタグは「テンプレ改善提案」を出す
 const IMPROVE_THRESHOLD = 25;
@@ -132,9 +132,11 @@ export default function LearningPage() {
                         {f.displayName.slice(0, 1)}
                       </Avatar>
                       <span className="text-sm font-medium">{f.displayName}</span>
-                      <Badge variant={editRateBadgeVariant(rate)} className="ml-1">
-                        編集率 {rate}%
+                      <Badge variant="secondary" className="ml-1 gap-1">
+                        <UserCheck className="h-3 w-3" />
+                        {f.operator}
                       </Badge>
+                      <Badge variant={editRateBadgeVariant(rate)}>編集率 {rate}%</Badge>
                       <div className="ml-auto flex items-center gap-2">
                         <span className="text-[11px] text-muted-foreground">
                           {formatClock(f.createdAt)}

@@ -12,6 +12,7 @@ export interface ReplyFeedback {
   inboundText: string; // きっかけになった顧客メッセージ
   generated: string; // AIの下書き
   sent: string; // 実際に送った文
+  operator: string; // 返信を対応したスタッフ
   createdAt: string; // ISO
   status: FeedbackStatus; // 承認状態（人が判断）
 }
@@ -28,6 +29,7 @@ export const initialFeedback: ReplyFeedback[] = [
       "このたびは商品が破損した状態でお届けしてしまい、誠に申し訳ございません。すぐに交換品を手配いたします。お手数ですが破損箇所のお写真を1枚お送りいただけますでしょうか。",
     sent:
       "このたびは鉢が破損した状態でお届けしてしまい、誠に申し訳ございません。すぐに新しい鉢へ交換手配いたします。恐れ入りますが破損箇所のお写真を1枚お送りください。本日中に再配送日をご連絡します。",
+    operator: "水口",
     createdAt: "2026-05-30T11:20:00+09:00",
     status: "pending",
   },
@@ -41,6 +43,7 @@ export const initialFeedback: ReplyFeedback[] = [
       "水やりは土の表面が乾いてからたっぷりと、が基本です。春〜夏は週1〜2回が目安、受け皿の水は溜めっぱなしにしないようご注意ください。",
     sent:
       "水やりは土の表面が乾いてからたっぷりと、が基本です。春〜夏は週1〜2回が目安、受け皿の水は溜めっぱなしにしないようご注意ください。",
+    operator: "郡司",
     createdAt: "2026-05-31T09:05:00+09:00",
     status: "approved",
   },
@@ -54,6 +57,7 @@ export const initialFeedback: ReplyFeedback[] = [
       "オリーブの木は次回入荷を6月中旬に予定しております。入荷後すぐの発送が可能です。サイズのご希望があればお知らせください。",
     sent:
       "オリーブの木は次回入荷を6月10日頃に予定しております。入荷後すぐ発送できます。樹高のご希望（80cm/120cm）があればお知らせください。先行のお取り置きも承ります。",
+    operator: "酢崎",
     createdAt: "2026-05-31T10:10:00+09:00",
     status: "pending",
   },

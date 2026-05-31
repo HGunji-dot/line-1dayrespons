@@ -42,7 +42,7 @@ export function ChatThread({ conversation }: Props) {
                 </div>
                 <span className="px-1 text-[10px] text-muted-foreground">
                   {formatClock(m.receivedAt)}
-                  {outbound ? " ・送信済み" : ""}
+                  {outbound ? ` ・${m.operator ? `${m.operator} が送信` : "送信済み"}` : ""}
                 </span>
               </div>
             );

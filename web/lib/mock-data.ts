@@ -12,7 +12,8 @@ function msg(
   text: string,
   direction: Message["direction"],
   receivedAt: string,
-  replied = false
+  replied = false,
+  operator?: string
 ): Message {
   return {
     id: seq,
@@ -24,6 +25,7 @@ function msg(
     receivedAt,
     replied,
     repliedAt: null,
+    operator,
   };
 }
 
@@ -102,6 +104,7 @@ export const conversations: Conversation[] = [
     unrepliedCount: 3,
     lastMessageAt: "2026-05-29T18:55:00+09:00",
     elapsedLabel: "約41時間未返信",
+    handlingBy: "水口", // デモ用：この会話は既に水口が対応中（他の人が選ぶとエラー）
     summary: "届いたシンボルツリーの鉢が割れていた。交換と再配送を希望。",
     urgency: "high",
     tags: [
@@ -136,7 +139,7 @@ export const conversations: Conversation[] = [
       "中村様、お問い合わせありがとうございます。当店の営業時間は平日10:00〜18:00、土日祝は9:00〜19:00です。ご来店お待ちしております。",
     messages: [
       msg("U005", "中村 あおい", "週末の営業時間を教えてください。", "inbound", "2026-05-31T10:50:00+09:00", true),
-      msg("U005", "中村 あおい", "土日は9時から19時まで営業しております！ご来店お待ちしています。", "outbound", "2026-05-31T11:00:00+09:00", true),
+      msg("U005", "中村 あおい", "土日は9時から19時まで営業しております！ご来店お待ちしています。", "outbound", "2026-05-31T11:00:00+09:00", true, "郡司"),
     ],
   },
 ];

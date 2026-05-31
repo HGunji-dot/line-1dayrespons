@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { STAFF } from "@/lib/staff";
+import { useOperator, setOperator } from "@/lib/operator-store";
 
 const NAV = [
   { href: "/", label: "会話" },
@@ -10,9 +12,10 @@ const NAV = [
   { href: "/learning", label: "学習ログ" },
 ];
 
-/** 全ページ共通のヘッダー（会話 ⇄ テンプレート管理 のナビ付き） */
+/** 全ページ共通のヘッダー（ナビ＋対応者セレクタ） */
 export function AppHeader() {
   const pathname = usePathname();
+  const operator = useOperator();
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-4 border-b bg-card px-4">
@@ -41,9 +44,38 @@ export function AppHeader() {
           );
         })}
       </nav>
-      <span className="ml-auto whitespace-nowrap rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-        モック（ダミーデータ）
-      </span>
+
+      <div className="ml-auto flex items-center gap-2">
+        {/* 対応者：クリックで選択。選ぶと返信ドラフトの編集・送信が可能になる */}
+        <span
+          className={cn(
+            "whitespace-nowrap text-xs",
+            operator ? "text-muted-foreground" : "font-medium text-amber-600"
+          )}
+        >
+          対応者
+        </span>
+        <div className="flex items-center gap-1">
+          {STAFF.map((s) => (
+            <button
+              key={s}
+              onClick={() => setOperator(operator === s ? null : s)}
+              aria-pressed={operator === s}
+              className={cn(
+                "whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+                operator === s
+                  ? "border-line bg-line text-line-foreground"
+                  : "bg-background text-foreground hover:bg-accent"
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        <span className="whitespace-nowrap rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+          モック
+        </span>
+      </div>
     </header>
   );
 }

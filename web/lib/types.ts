@@ -11,6 +11,7 @@ export interface Message {
   receivedAt: string; // messages.received_at (ISO)
   replied: boolean; // messages.replied
   repliedAt: string | null; // messages.replied_at
+  operator?: string; // outbound を送った対応者（スタッフ名）
 }
 
 export type Urgency = "high" | "medium" | "low";
@@ -31,6 +32,7 @@ export interface Conversation {
   unrepliedCount: number; // 未返信の inbound 件数
   lastMessageAt: string; // 最新メッセージの時刻 (ISO)
   elapsedLabel: string; // 一覧に出す経過表記（例: 約26時間）
+  handlingBy?: string | null; // 現在この会話を対応中のスタッフ（二重対応防止用のクレーム）
   // --- 以下は本来 AI が生成する。今はダミー ---
   summary: string; // 顧客メッセージの要約
   urgency: Urgency; // 緊急度

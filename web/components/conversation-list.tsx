@@ -70,6 +70,11 @@ export function ConversationList({ conversations, selectedUserId, onSelect }: Pr
                     >
                       {c.elapsedLabel}
                     </p>
+                    {c.handlingBy && c.unrepliedCount > 0 && (
+                      <span className="mt-1 inline-flex items-center gap-1 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-700">
+                        対応中: {c.handlingBy}
+                      </span>
+                    )}
                   </div>
                 </button>
               </li>
