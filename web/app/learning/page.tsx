@@ -5,11 +5,13 @@ import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar } from "@/components/ui/avatar";
 import { DiffView, DiffLegend } from "@/components/diff-view";
-import { useFeedback, setFeedbackStatus } from "@/lib/feedback-store";
+import { useFeedback, setFeedbackStatus, setCorrectedReply } from "@/lib/feedback-store";
+import type { ReplyFeedback } from "@/lib/feedback-data";
 import { editRatePct } from "@/lib/diff";
 import { formatClock } from "@/lib/utils";
 import { Check, X, Pencil, TrendingUp, UserCheck } from "lucide-react";
@@ -122,94 +124,126 @@ export default function LearningPage() {
               <DiffLegend />
             </div>
 
-            {feedback.map((f) => {
-              const rate = editRatePct(f.generated, f.sent);
-              return (
-                <Card key={f.id}>
-                  <CardContent className="space-y-3 p-4">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7 bg-slate-400 text-xs">
-                        {f.displayName.slice(0, 1)}
-                      </Avatar>
-                      <span className="text-sm font-medium">{f.displayName}</span>
-                      <Badge variant="secondary" className="ml-1 gap-1">
-                        <UserCheck className="h-3 w-3" />
-                        {f.operator}
-                      </Badge>
-                      <Badge variant={editRateBadgeVariant(rate)}>編集率 {rate}%</Badge>
-                      <div className="ml-auto flex items-center gap-2">
-                        <span className="text-[11px] text-muted-foreground">
-                          {formatClock(f.createdAt)}
-                        </span>
-                        {f.status === "approved" && (
-                          <Badge variant="success" className="gap-1">
-                            <Check className="h-3 w-3" />
-                            学習済み
-                          </Badge>
-                        )}
-                        {f.status === "rejected" && (
-                          <Badge variant="outline" className="text-muted-foreground">
-                            却下
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1">
-                      {f.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary" className="text-[10px]">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-
-                    <p className="rounded bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
-                      顧客：{f.inboundText}
-                    </p>
-
-                    <div className="rounded-md border p-3">
-                      <DiffView generated={f.generated} sent={f.sent} />
-                    </div>
-
-                    {f.status === "pending" ? (
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setFeedbackStatus(f.id, "rejected")}
-                        >
-                          <X className="h-4 w-4" />
-                          却下
-                        </Button>
-                        <Button
-                          variant="line"
-                          size="sm"
-                          onClick={() => setFeedbackStatus(f.id, "approved")}
-                        >
-                          <Check className="h-4 w-4" />
-                          良い例として承認（学習に追加）
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex justify-end">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-muted-foreground"
-                          onClick={() => setFeedbackStatus(f.id, "pending")}
-                        >
-                          承認状態を戻す
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {feedback.map((f) => (
+              <FeedbackEntry key={f.id} f={f} />
+            ))}
           </div>
         </div>
       </ScrollArea>
     </div>
+  );
+}
+
+/** 1件のフィードバック（差分表示・承認/却下・却下時は正解入力） */
+function FeedbackEntry({ f }: { f: ReplyFeedback }) {
+  const rate = editRatePct(f.generated, f.sent);
+  const [correction, setCorrection] = React.useState(f.correctedReply ?? f.sent);
+  const [savedCorrection, setSavedCorrection] = React.useState(false);
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4">
+        <div className="flex items-center gap-2">
+          <Avatar className="h-7 w-7 bg-slate-400 text-xs">{f.displayName.slice(0, 1)}</Avatar>
+          <span className="text-sm font-medium">{f.displayName}</span>
+          <Badge variant="secondary" className="ml-1 gap-1">
+            <UserCheck className="h-3 w-3" />
+            {f.operator}
+          </Badge>
+          <Badge variant={editRateBadgeVariant(rate)}>編集率 {rate}%</Badge>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">{formatClock(f.createdAt)}</span>
+            {f.status === "approved" && (
+              <Badge variant="success" className="gap-1">
+                <Check className="h-3 w-3" />
+                学習済み
+              </Badge>
+            )}
+            {f.status === "rejected" && (
+              <Badge variant="outline" className="text-muted-foreground">
+                却下
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-1">
+          {f.tags.map((tag) => (
+            <Badge key={tag} variant="secondary" className="text-[10px]">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+
+        <p className="rounded bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
+          顧客：{f.inboundText}
+        </p>
+
+        <div className="rounded-md border p-3">
+          <DiffView generated={f.generated} sent={f.sent} />
+        </div>
+
+        {/* 却下時：正しい返信文を入力（正解として裏で蓄積される） */}
+        {f.status === "rejected" && (
+          <div className="space-y-2 rounded-md border border-rose-200 bg-rose-50/50 p-3">
+            <label className="flex items-center gap-1 text-xs font-medium text-rose-700">
+              <Pencil className="h-3.5 w-3.5" />
+              正しい返信文を入力（正解として蓄積されます）
+            </label>
+            <Textarea
+              value={correction}
+              onChange={(e) => {
+                setCorrection(e.target.value);
+                setSavedCorrection(false);
+              }}
+              className="min-h-[80px] bg-white text-sm leading-relaxed"
+              placeholder="この問い合わせにはこう返すべき、という正しい返信文…"
+            />
+            <div className="flex items-center justify-end gap-2">
+              {savedCorrection && (
+                <span className="text-xs text-emerald-600">✓ 正解として蓄積しました</span>
+              )}
+              <Button
+                variant="line"
+                size="sm"
+                disabled={!correction.trim()}
+                onClick={() => {
+                  setCorrectedReply(f.id, correction);
+                  setSavedCorrection(true);
+                }}
+              >
+                <Check className="h-4 w-4" />
+                正解として保存
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {f.status === "pending" ? (
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setFeedbackStatus(f.id, "rejected")}>
+              <X className="h-4 w-4" />
+              却下
+            </Button>
+            <Button variant="line" size="sm" onClick={() => setFeedbackStatus(f.id, "approved")}>
+              <Check className="h-4 w-4" />
+              良い例として承認（学習に追加）
+            </Button>
+          </div>
+        ) : (
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => setFeedbackStatus(f.id, "pending")}
+            >
+              承認状態を戻す
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

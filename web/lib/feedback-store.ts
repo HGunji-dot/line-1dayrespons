@@ -31,6 +31,26 @@ export function setFeedbackStatus(id: string, status: FeedbackStatus) {
   emit();
 }
 
+/** 却下したエントリに「正しい返信文」を登録（正解として蓄積） */
+export function setCorrectedReply(id: string, correctedReply: string) {
+  state = state.map((f) => (f.id === id ? { ...f, correctedReply } : f));
+  emit();
+}
+
+/**
+ * 蓄積された「正解返信データ」（フェーズCでRAGの教師データになる）。
+ * 承認したものは送信文を、却下して修正したものは修正文を正解とする。
+ */
+export function getAcceptedReplies(): { tags: string[]; reply: string }[] {
+  return state
+    .map((f) => {
+      if (f.status === "approved") return { tags: f.tags, reply: f.sent };
+      if (f.status === "rejected" && f.correctedReply) return { tags: f.tags, reply: f.correctedReply };
+      return null;
+    })
+    .filter((x): x is { tags: string[]; reply: string } => x !== null);
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);

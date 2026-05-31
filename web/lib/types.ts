@@ -33,6 +33,7 @@ export interface Conversation {
   lastMessageAt: string; // 最新メッセージの時刻 (ISO)
   elapsedLabel: string; // 一覧に出す経過表記（例: 約26時間）
   handlingBy?: string | null; // 現在この会話を対応中のスタッフ（二重対応防止用のクレーム）
+  archived?: boolean; // 処理済みでアーカイブ（一覧から非表示）
   // --- 以下は本来 AI が生成する。今はダミー ---
   summary: string; // 顧客メッセージの要約
   urgency: Urgency; // 緊急度

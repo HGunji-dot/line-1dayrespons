@@ -20,6 +20,7 @@ export default function Page() {
   const [selectedUserId, setSelectedUserId] = React.useState<string | null>(
     initialConversations[0]?.userId ?? null
   );
+  const [showArchived, setShowArchived] = React.useState(false);
 
   const selected = conversations.find((c) => c.userId === selectedUserId) ?? null;
 
@@ -80,6 +81,16 @@ export default function Page() {
     );
   };
 
+  // アーカイブ（処理済みを一覧から隠す）/ 解除。返信済みのみアーカイブ可。
+  const handleArchive = (userId: string, archived: boolean) => {
+    setConversations((prev) => prev.map((c) => (c.userId === userId ? { ...c, archived } : c)));
+    // アーカイブして非表示になるなら、表示中の別の会話へ選択を移す
+    if (archived && !showArchived && userId === selectedUserId) {
+      const next = conversations.find((c) => c.userId !== userId && !c.archived);
+      setSelectedUserId(next?.userId ?? null);
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col">
       <AppHeader />
@@ -93,13 +104,15 @@ export default function Page() {
               conversations={conversations}
               selectedUserId={selectedUserId}
               onSelect={setSelectedUserId}
+              showArchived={showArchived}
+              onToggleArchived={() => setShowArchived((v) => !v)}
             />
           </ResizablePanel>
           <ResizableHandle withHandle />
 
           {/* ② トーク履歴 */}
           <ResizablePanel defaultSize={32} minSize={22} className="bg-card">
-            <ChatThread conversation={selected} />
+            <ChatThread conversation={selected} onArchive={handleArchive} />
           </ResizablePanel>
           <ResizableHandle withHandle />
 

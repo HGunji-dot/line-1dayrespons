@@ -13,6 +13,7 @@ export interface ReplyFeedback {
   generated: string; // AIの下書き
   sent: string; // 実際に送った文
   operator: string; // 返信を対応したスタッフ
+  correctedReply?: string; // 却下時に人が入力した「正しい返信文」（正解として蓄積）
   createdAt: string; // ISO
   status: FeedbackStatus; // 承認状態（人が判断）
 }
