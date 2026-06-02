@@ -149,3 +149,62 @@ AS $$
         SET note       = EXCLUDED.note,
             updated_at = NOW();
 $$;
+
+-- ═════════════════════════════════════════════
+-- AI学習 / データ収集（フェーズB〜C）
+--   - tags           : 固定タグマスタ（toiawaseqa.xlsx の11シート名）
+--   - templates      : タグ→返信例（Q&A）。RAG/生成の種
+--   - reply_feedback : AI下書き↔実送信文。承認済みが学習の正解例になる
+-- ═════════════════════════════════════════════
+
+-- ─────────────────────────────────────────────
+-- 8. tags テーブル（固定タグマスタ）
+--    AI は自由記述せず、この語彙の中から確信度付きで選ぶ。
+--    新タグは管理者が追加する（表揺れ防止＝結合キーの安定）。
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS tags (
+    label      TEXT        PRIMARY KEY,         -- 例: 枯れ、芽吹かない / 在庫確認・入荷連絡
+    sort_order INTEGER     NOT NULL DEFAULT 0,  -- 一覧表示順（インポート時の出現順）
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ─────────────────────────────────────────────
+-- 9. templates テーブル（タグ→返信例。Q&A対）
+--    id は決定的ハッシュ（tag_label|title）にし、再インポートで
+--    重複せず更新されるようにする（冪等な取り込み）。
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS templates (
+    id         TEXT        PRIMARY KEY,                 -- sha1(tag_label || '|' || title) の先頭16桁
+    tag_label  TEXT        NOT NULL REFERENCES tags(label),
+    title      TEXT        NOT NULL,                    -- =Q列（問い合わせ内容）
+    body       TEXT        NOT NULL,                    -- =A列（返信文）
+    images     TEXT[],                                  -- 任意（mock互換のため列だけ用意）
+    source     TEXT,                                    -- 取り込み元（例: toiawaseqa.xlsx）
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_templates_tag
+    ON templates (tag_label);
+
+-- ─────────────────────────────────────────────
+-- 10. reply_feedback テーブル（学習フィードバック）
+--    送信のたびに「AI下書き(generated) ↔ 実送信文(sent)」を記録する。
+--    人が approved にしたものだけが、フェーズCで生成の正解例になる。
+--    （web/lib/feedback-data.ts の ReplyFeedback に対応）
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS reply_feedback (
+    id           BIGSERIAL   PRIMARY KEY,
+    user_id      TEXT        NOT NULL,
+    display_name TEXT,
+    tags         TEXT[]      NOT NULL DEFAULT '{}',     -- 人が確定したタグ
+    inbound_text TEXT,                                  -- きっかけになった顧客メッセージ
+    generated    TEXT        NOT NULL DEFAULT '',       -- AIの下書き（無AI期は空）
+    sent         TEXT        NOT NULL,                  -- 実際に送った文
+    status       TEXT        NOT NULL DEFAULT 'pending'
+                 CHECK (status IN ('pending', 'approved', 'rejected')),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    approved_at  TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_reply_feedback_status
+    ON reply_feedback (status, created_at DESC);

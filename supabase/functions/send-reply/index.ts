@@ -12,11 +12,18 @@
  *   {
  *     "userId": "Uxxxxxxxxx",
  *     "message": "テキスト",          // 省略可
- *     "imageUrls": ["https://..."]    // 省略可・複数枚対応
+ *     "imageUrls": ["https://..."],   // 省略可・複数枚対応
+ *     "generated": "AIの下書き",       // 省略可（学習用）
+ *     "tags": ["在庫確認・入荷連絡"],   // 省略可（人が確定したタグ）
+ *     "inboundText": "顧客の質問",     // 省略可（学習用）
+ *     "displayName": "山本 大樹"        // 省略可
  *   }
  *
  * LINE の制約: テキスト + 画像の合計が 5件以内
  * message あり → 画像は最大 4枚 / message なし → 画像は最大 5枚
+ *
+ * 学習データ収集: message（テキスト返信）があるとき、AI下書きと実送信文を
+ * reply_feedback へ記録する。この書き込みは非致命的（失敗しても送信は成功扱い）。
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -44,14 +51,22 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Unauthorized" }, 401);
   }
 
-  let body: { userId?: string; message?: string; imageUrls?: string[] };
+  let body: {
+    userId?: string;
+    message?: string;
+    imageUrls?: string[];
+    generated?: string;
+    tags?: string[];
+    inboundText?: string;
+    displayName?: string;
+  };
   try {
     body = await req.json();
   } catch {
     return json({ error: "Invalid JSON" }, 400);
   }
 
-  const { userId, message, imageUrls = [] } = body;
+  const { userId, message, imageUrls = [], generated, tags, inboundText, displayName } = body;
   if (!userId) {
     return json({ error: "userId is required" }, 400);
   }
@@ -132,6 +147,23 @@ Deno.serve(async (req: Request) => {
   if (rpcError) {
     console.error("DB mark_user_replied error:", rpcError);
     return json({ error: "Failed to update replied status" }, 500);
+  }
+
+  // 学習データ収集（非致命的）: テキスト返信のとき AI下書き↔実送信文を記録する。
+  // 返信は既に送信済みのため、ここで失敗しても送信は成功として扱う。
+  if (message) {
+    const { error: feedbackError } = await supabase.from("reply_feedback").insert({
+      user_id: userId,
+      display_name: displayName ?? null,
+      tags: tags ?? [],
+      inbound_text: inboundText ?? null,
+      generated: generated ?? "",
+      sent: message,
+      status: "pending",
+    });
+    if (feedbackError) {
+      console.error("reply_feedback insert error (non-fatal):", feedbackError);
+    }
   }
 
   return json({ success: true, userId, message, imageUrls });
