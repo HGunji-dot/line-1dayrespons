@@ -44,6 +44,7 @@
    | `ADMIN_SECRET` | `send-reply` の `Authorization: Bearer ...` との照合 |
    | `NOTIFY_SECRET` | `check-unreplied-notify` の Bearer 認証用（**未設定だと全リクエストが 401 になるため必須**） |
    | `ADMIN_NOTIFY_USER_IDS` | 未返信通知を受け取る管理者の LINE ユーザーID（`U...`）。複数はカンマ区切り |
+   | `RICHMENU_KEYWORDS` | （任意）リッチメニューのタップで送られる定型キーワード。複数はカンマ区切り。一致した受信メッセージは `replied=true` で保存し、未返信アラートから除外する。未設定なら従来どおり全件をアラート対象にする。詳細は「リッチメニューとの併用」を参照 |
 
    **CLI の認証（どちらか一方）**
 
@@ -87,6 +88,73 @@
 4. **LINE Webhook**  
    Messaging API の Webhook URL を `webhook-receiver` の URL に設定する。  
    既に L-Step など別サービスが Webhook を使っている場合は **URL は1つだけ** のため、併用の可否を確認すること。
+
+## リッチメニュー（外部ツール）との併用
+
+### 前提となる制約
+
+**LINE の Webhook URL はチャネルに 1 つしか登録できない。** このプロジェクトのリッチメニュー／キーワード自動応答は **外部ツール（L-Step / エルメ(L Message) / L ステップ 等）** が Webhook を受け取って動いている。一方、本システムの未返信通知は `webhook-receiver`（Supabase）が Webhook を受け取る必要がある。
+
+そのため、Webhook URL を `webhook-receiver` に向けると外部ツールにイベントが届かなくなり、**リッチメニューのタップに自動応答が返らなくなる**（逆もまた然り）。
+
+### チャネルアクセストークンの共有（重要）
+
+L-Step などの外部ツールは **チャネルアクセストークン（長期）** を使って返信・リッチメニュー操作を行う。本システムの構築時に LINE Developers Console でこのトークンを **「再発行」すると、外部ツールが保存している旧トークンが無効化され、外部ツールが返信できなくなる**（Webhook が届いても 401 で送信失敗）。
+
+チャネルアクセストークンは複数システムで **同じ値を共有して同時に使える**。したがって:
+
+- **現在有効なトークン**（本システムの Supabase Secret `LINE_CHANNEL_ACCESS_TOKEN` に入っている値＝通知が実際に送れているならこれが有効）を、**外部ツール側の設定にも貼り直す**。
+- 以後、どちらかの都合でトークンを **再発行したら、両方を必ず更新する**。
+- チャネルシークレットは再発行で変わらないため、Webhook 署名検証・中継（署名転送）には影響しない。
+
+### 「タップしても返事が来ない」場合の即時復旧
+
+原因は次の 2 つが重なっていることが多い。両方を戻す。
+
+1. **Webhook URL**: LINE Developers Console → 対象チャネル → **Messaging API 設定 → Webhook URL** を、**外部ツールの Webhook URL に戻す**。
+2. **チャネルアクセストークン**: 上記「チャネルアクセストークンの共有」のとおり、外部ツール側に現行の有効なトークンを **貼り直す**。
+
+これでリッチメニューは復活する。ただしこの状態では `webhook-receiver` にメッセージが届かないため、**未返信通知は停止する**（併用するには次の中継方式へ）。
+
+### 両立させる方法（Webhook 中継 / fan-out）
+
+Webhook URL は 1 つなので、受け取った 1 つの Function が **外部ツールへそのまま転送（リレー）** することで両立させる。
+
+```
+[LINE] → Webhook(1つ) → webhook-receiver
+                          ├─ messages テーブルへ保存（未返信通知用）
+                          └─ 生ボディ＋x-line-signature を外部ツールの Webhook URL へ転送（リッチメニュー応答用）
+```
+
+- LINE Webhook URL は **`webhook-receiver` に向ける**。
+- `webhook-receiver` は環境変数 **`RELAY_WEBHOOK_URL`**（＝外部ツールの Webhook URL）が設定されていれば、**受信した生ボディと `x-line-signature` ヘッダーをそのまま** その URL へ POST する。署名は元のものを転送するので、外部ツールは同じチャネルシークレットで検証して通る。
+- 加えて、リッチメニューのタップで送られる定型キーワード（例: `オススメの植木`, `樹種の相談`, `植木の調子が悪い`, `その他のお問い合わせ`）を **`RICHMENU_KEYWORDS`** に登録する。一致した受信メッセージは `replied=true` で保存され、`get_unreplied_users`（`replied=FALSE` のみ集計）から除外されるため、メニュータップが未返信アラートのノイズにならない。記録自体は残る。
+
+> **注意（中継方式の依存関係）**: この方式では外部ツールの応答が `webhook-receiver` を経由する。`webhook-receiver` が停止すると **リッチメニュー応答と通知の両方** が止まる。可用性が重要なら、外部ツール側に Webhook 転送機能があるか（＝外部ツールを 1 次受けにして Supabase へ転送できるか）も検討する。
+
+### 併用へのロールアウト手順
+
+1. まず即時復旧（上記）で外部ツールに Webhook を戻し、**かつチャネルアクセストークンを貼り直して**リッチメニューを復活させる。
+2. `webhook-receiver` に中継処理を入れてデプロイし、`RELAY_WEBHOOK_URL`（＝外部ツールの Webhook URL）と `RICHMENU_KEYWORDS` を設定する。
+   ```bash
+   npx supabase@latest secrets set --project-ref <project-ref> \
+     RELAY_WEBHOOK_URL="<外部ツールの Webhook URL>" \
+     RICHMENU_KEYWORDS="オススメの植木,樹種の相談,植木の調子が悪い,その他のお問い合わせ"
+   npx supabase@latest functions deploy webhook-receiver --project-ref <project-ref>
+   ```
+3. LINE Webhook URL を `webhook-receiver` の URL に切り替える。
+4. 実機でリッチメニューをタップし、**自動応答が返ること**＋ **`messages` に該当キーワードが `replied=true` で入ること** を確認する。
+5. （任意・推奨）フィルタ導入前に溜まったメニュータップ分を一括で除外する。
+   ```sql
+   UPDATE messages
+   SET replied = TRUE, replied_at = NOW()
+   WHERE direction = 'inbound'
+     AND replied = FALSE
+     AND text = ANY (ARRAY['オススメの植木','樹種の相談','植木の調子が悪い','その他のお問い合わせ']);
+   ```
+6. 確認できたら、一時停止していた cron-job.org のジョブを再開する。
+
+> **中継が外部ツールに受理されるか先に検証する**: L-Step などは Webhook の `x-line-signature`（チャネルシークレットによる署名）で検証するため、生ボディと署名をそのまま転送すれば通る想定。ただし送信元 IP 等を追加検証する実装だと、Supabase 経由の転送を弾く可能性がある。手順4のテストタップで **L-Step 側が確実に応答する**ことを必ず確認してから本番運用に移す。弾かれる場合は中継方式が使えないため、別途相談すること。
 
 ## 管理者のユーザーID（`ADMIN_NOTIFY_USER_IDS`）
 
