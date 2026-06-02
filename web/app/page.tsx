@@ -28,7 +28,9 @@ export default function Page() {
   const handleSend = (userId: string, text: string, generated: string) => {
     const conv = conversations.find((c) => c.userId === userId);
     const now = new Date().toISOString();
-    if (conv) {
+    // 本文が空（画像のみ送信）のときは学習ログに記録しない。
+    // 空文字を sent として渡すと編集率が100%になり、タグ別統計を汚染するため。
+    if (conv && text.trim()) {
       addFeedback({
         id: `fb-${userId}-${Date.now()}`,
         userId,

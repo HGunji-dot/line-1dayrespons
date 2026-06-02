@@ -11,8 +11,17 @@ export interface ReplyTemplate {
   tagLabel: string; // どのタグに紐づくか
   title: string; // バリエーション名（例: 丁寧 / 簡潔）
   body: string; // 返信例の本文
+  images?: string[]; // 添付画像（data URL・最大4枚）。未指定=画像なし
   updatedAt: string; // 最終更新（ISO）
 }
+
+// デモ用シード画像（モックの可視化用。SVG を data URL 化した軽量プレースホルダ）
+const DEMO_IMG_PLANT =
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjAiIGhlaWdodD0iMTYwIj48cmVjdCB3aWR0aD0iMTYwIiBoZWlnaHQ9IjE2MCIgZmlsbD0iIzM0YTg1MyIvPjx0ZXh0IHg9IjgwIiB5PSI4NiIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlBMQU5UPC90ZXh0Pjwvc3ZnPg==";
+const DEMO_IMG_RECEIPT =
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjAiIGhlaWdodD0iMTYwIj48cmVjdCB3aWR0aD0iMTYwIiBoZWlnaHQ9IjE2MCIgZmlsbD0iI2YxZjNmNCIvPjxyZWN0IHg9IjQwIiB5PSIyNCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjExMiIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjOWFhMGE2Ii8+PHRleHQgeD0iODAiIHk9IjkyIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzVmNjM2OCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+UkVDRUlQVDwvdGV4dD48L3N2Zz4=";
+const DEMO_IMG_DAMAGE =
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjAiIGhlaWdodD0iMTYwIj48cmVjdCB3aWR0aD0iMTYwIiBoZWlnaHQ9IjE2MCIgZmlsbD0iI2ZjZThlNiIvPjxwYXRoIGQ9Ik00MCAxMjAgTDgwIDQwIEwxMjAgMTIwIFoiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q5MzAyNSIgc3Ryb2tlLXdpZHRoPSI2Ii8+PHRleHQgeD0iODAiIHk9IjExMiIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiNkOTMwMjUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkRBTUFHRTwvdGV4dD48L3N2Zz4=";
 
 export const initialTemplates: ReplyTemplate[] = [
   {
@@ -20,6 +29,7 @@ export const initialTemplates: ReplyTemplate[] = [
     tagLabel: "枯れ保証",
     title: "丁寧（状態確認をお願いする）",
     body: "お問い合わせありがとうございます。葉が枯れてきているとのこと、ご心配のことと存じます。ご購入から1年以内であれば枯れ保証の対象となります。状態確認のため、お手数ですが株全体とご購入時のレシートのお写真をお送りいただけますでしょうか。確認のうえ、交換または返金のご案内をいたします。",
+    images: [DEMO_IMG_PLANT, DEMO_IMG_RECEIPT],
     updatedAt: "2026-05-20T10:00:00+09:00",
   },
   {
@@ -48,6 +58,7 @@ export const initialTemplates: ReplyTemplate[] = [
     tagLabel: "配送トラブル",
     title: "破損・お詫びと交換手配",
     body: "このたびは商品が破損した状態でお届けしてしまい、誠に申し訳ございません。すぐに交換品を手配いたします。お手数ですが破損箇所のお写真を1枚お送りいただけますでしょうか。確認後、最短での再配送日を本日中にご連絡いたします。",
+    images: [DEMO_IMG_DAMAGE],
     updatedAt: "2026-05-25T16:40:00+09:00",
   },
   {

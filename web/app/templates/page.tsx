@@ -11,6 +11,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, formatClock } from "@/lib/utils";
 import { initialTemplates, getAllTagLabels, type ReplyTemplate } from "@/lib/template-data";
+import { ImageAttach } from "@/components/image-attach";
+import { MAX_IMAGES } from "@/lib/image";
 import { Plus, Trash2, Save, Tag } from "lucide-react";
 
 function TemplatesInner() {
@@ -34,6 +36,7 @@ function TemplatesInner() {
   // 新規追加フォーム
   const [newTitle, setNewTitle] = React.useState("");
   const [newBody, setNewBody] = React.useState("");
+  const [newImages, setNewImages] = React.useState<string[]>([]);
 
   const stamp = () => new Date().toISOString();
 
@@ -46,11 +49,13 @@ function TemplatesInner() {
         tagLabel: selectedTag,
         title: newTitle.trim() || "無題のテンプレ",
         body: newBody.trim(),
+        images: newImages.length > 0 ? newImages : undefined,
         updatedAt: stamp(),
       },
     ]);
     setNewTitle("");
     setNewBody("");
+    setNewImages([]);
   };
 
   const updateTemplate = (id: string, patch: Partial<ReplyTemplate>) =>
@@ -152,6 +157,13 @@ function TemplatesInner() {
                     placeholder={`「${selectedTag}」が付いたときの返信例を入力…`}
                     className="min-h-[100px]"
                   />
+                  <ImageAttach
+                    value={newImages}
+                    onChange={setNewImages}
+                    max={MAX_IMAGES}
+                    label="画像を添付（任意・最大4枚）"
+                    idPrefix="new-tpl"
+                  />
                   <div className="flex justify-end">
                     <Button variant="line" size="sm" onClick={addTemplate} disabled={!newBody.trim()}>
                       <Plus className="h-4 w-4" />
@@ -180,9 +192,12 @@ function TemplateCard({
 }) {
   const [title, setTitle] = React.useState(template.title);
   const [body, setBody] = React.useState(template.body);
+  const [images, setImages] = React.useState<string[]>(template.images ?? []);
   const [saved, setSaved] = React.useState(false);
 
-  const dirty = title !== template.title || body !== template.body;
+  const imagesChanged =
+    JSON.stringify(images) !== JSON.stringify(template.images ?? []);
+  const dirty = title !== template.title || body !== template.body || imagesChanged;
 
   return (
     <Card>
@@ -217,6 +232,16 @@ function TemplateCard({
           }}
           className="min-h-[96px] text-sm leading-relaxed"
         />
+        <ImageAttach
+          value={images}
+          onChange={(next) => {
+            setImages(next);
+            setSaved(false);
+          }}
+          max={MAX_IMAGES}
+          label="画像を添付（任意・最大4枚）"
+          idPrefix={template.id}
+        />
         <div className="flex items-center justify-end gap-2">
           {saved && <span className="text-xs text-emerald-600">✓ 保存しました（モック）</span>}
           <Button
@@ -224,7 +249,7 @@ function TemplateCard({
             size="sm"
             disabled={!dirty}
             onClick={() => {
-              onSave({ title, body });
+              onSave({ title, body, images: images.length > 0 ? images : undefined });
               setSaved(true);
             }}
           >
