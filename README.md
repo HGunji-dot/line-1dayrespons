@@ -41,6 +41,7 @@
    | `LINE_CHANNEL_SECRET` | Webhook 署名検証（`webhook-receiver`） |
    | `LINE_CHANNEL_ACCESS_TOKEN` | プロフィール取得・Push（両 Function） |
    | `ADMIN_SECRET` | `send-reply` の `Authorization: Bearer ...` との照合 |
+   | `RELAY_SECRET` | L-Step Webhook転送 を受ける際の共有シークレット（転送先 URL の `?k=` と照合）。L-Step 併用時のみ |
 
    **CLI の認証（どちらか一方）**
 
@@ -56,15 +57,27 @@
    npx supabase@latest secrets set --project-ref <project-ref> \
      LINE_CHANNEL_SECRET=<チャネルシークレット> \
      LINE_CHANNEL_ACCESS_TOKEN=<チャネルアクセストークン> \
-     ADMIN_SECRET=<send-reply 用の長いランダム文字列>
+     ADMIN_SECRET=<send-reply 用の長いランダム文字列> \
+     RELAY_SECRET=<L-Step併用時のみ: 転送認証用の長いランダム文字列>
 
    npx supabase@latest functions deploy webhook-receiver --project-ref <project-ref>
    npx supabase@latest functions deploy send-reply --project-ref <project-ref>
    ```
 
-3. **LINE Webhook**  
-   Messaging API の Webhook URL を `webhook-receiver` の URL に設定する。  
-   既に L-Step など別サービスが Webhook を使っている場合は **URL は1つだけ** のため、併用の可否を確認すること。
+3. **LINE Webhook（L-Step 併用 / 単独）**
+
+   **(A) L-Step を併用する場合（本番の標準構成）**  
+   LINE 公式アカウントの Webhook URL は **1つだけ** で、それは L-Step が保持する。  
+   L-Step の **「Webhook転送」オプション（フリープランから申込可・月額 5,500 円）** を有効化し、
+   転送先 URL に **`webhook-receiver` の URL + `?k=<RELAY_SECRET>`** を登録する。  
+   例: `https://<project-ref>.supabase.co/functions/v1/webhook-receiver?k=<RELAY_SECRET>`  
+   L-Step は LINE の生イベント（メッセージ受信を含む）をそのまま転送するため、本関数のパーサはそのまま動く。  
+   認証は **LINE 署名 か `?k=` の共有シークレットのどちらか**が通れば受理する（転送時に署名が
+   保持されるか不確実なため二段構え）。初回は関数ログで `sigValid` / `relayValid` を確認し、
+   実際に通っている方に合わせて運用する。
+
+   **(B) L-Step を使わず単独運用する場合**  
+   Messaging API の Webhook URL を `webhook-receiver` の URL に直接設定する（`RELAY_SECRET` は不要、LINE 署名で認証）。
 
 4. **GitHub Actions**  
    既定では **毎日 08:00（JST）** にワークフローが動く（cron は UTC の `0 23 * * *`）。  
