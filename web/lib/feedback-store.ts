@@ -1,16 +1,18 @@
 "use client";
 
+import * as React from "react";
 import { useSyncExternalStore } from "react";
-import { initialFeedback, type ReplyFeedback, type FeedbackStatus } from "@/lib/feedback-data";
+import { type ReplyFeedback, type FeedbackStatus } from "@/lib/feedback-data";
+import { useRealtimeSignal } from "@/lib/realtime";
 
 // ─────────────────────────────────────────────
-// ルート間で共有する軽量な「学習フィードバック」ストア。
-// モジュールスコープの配列なので、SPA遷移(Linkでの画面移動)の間は状態が保持され、
-// 「会話ページで送信 → 学習ログページに即反映」が体験できる。
-// （フルリロードするとシードに戻る。本番では Supabase に置き換える。）
+// 学習フィードバックの共有ストア（フェーズB: Supabase 実接続）。
+// /api/feedback を介して reply_feedback テーブルを読み書きする。
+// 変更は楽観的にローカル反映し、サーバ確定後に再取得して整合を取る。
+// Realtime 通知（他スタッフの操作）でも自動再取得する。
 // ─────────────────────────────────────────────
 
-let state: ReplyFeedback[] = [...initialFeedback];
+let state: ReplyFeedback[] = [];
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -21,26 +23,51 @@ export function getFeedback(): ReplyFeedback[] {
   return state;
 }
 
-export function addFeedback(item: ReplyFeedback) {
-  state = [item, ...state];
+export async function loadFeedback(): Promise<void> {
+  try {
+    const res = await fetch("/api/feedback", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    state = data.feedback ?? [];
+    emit();
+  } catch {
+    // 取得失敗時は既存表示を維持
+  }
+}
+
+function patchLocal(id: string, patch: Partial<ReplyFeedback>) {
+  state = state.map((f) => (f.id === id ? { ...f, ...patch } : f));
   emit();
 }
 
+async function patchServer(id: string, body: Record<string, unknown>) {
+  try {
+    const res = await fetch(`/api/feedback/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) await loadFeedback(); // 失敗したらサーバ状態に戻す
+  } catch {
+    await loadFeedback();
+  }
+}
+
 export function setFeedbackStatus(id: string, status: FeedbackStatus) {
-  state = state.map((f) => (f.id === id ? { ...f, status } : f));
-  emit();
+  patchLocal(id, { status });
+  void patchServer(id, { status });
 }
 
 /** 却下したエントリに「正しい返信文」を登録（正解として蓄積） */
 export function setCorrectedReply(id: string, correctedReply: string) {
-  state = state.map((f) => (f.id === id ? { ...f, correctedReply } : f));
-  emit();
+  patchLocal(id, { correctedReply });
+  void patchServer(id, { correctedReply });
 }
 
 /** アーカイブ（学習ログから外す）/ 解除 */
 export function setFeedbackArchived(id: string, archived: boolean) {
-  state = state.map((f) => (f.id === id ? { ...f, archived } : f));
-  emit();
+  patchLocal(id, { archived });
+  void patchServer(id, { archived });
 }
 
 /**
@@ -62,7 +89,19 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-/** React から購読するフック（サーバー/クライアントとも同じスナップショットを返す） */
+/** React から購読するフック。初回ロード＋Realtime 再取得を内包する。 */
 export function useFeedback(): ReplyFeedback[] {
-  return useSyncExternalStore(subscribe, getFeedback, getFeedback);
+  const data = useSyncExternalStore(subscribe, getFeedback, getFeedback);
+
+  React.useEffect(() => {
+    void loadFeedback();
+  }, []);
+
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  useRealtimeSignal(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => void loadFeedback(), 300);
+  });
+
+  return data;
 }

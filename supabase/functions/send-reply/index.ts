@@ -9,7 +9,9 @@
  *   POST /functions/v1/send-reply
  *   Authorization: Bearer <ADMIN_SECRET>
  *   Content-Type: application/json
- *   { "userId": "Uxxxxxxxxx", "message": "お問い合わせありがとうございます。" }
+ *   { "userId": "Uxxxxxxxxx", "message": "お問い合わせありがとうございます。", "operator": "郡司" }
+ *
+ * operator は任意。送信したスタッフ名を outbound に記録する（誰が返信したかの記録用）。
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -33,14 +35,14 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Unauthorized" }, 401);
   }
 
-  let body: { userId?: string; message?: string };
+  let body: { userId?: string; message?: string; operator?: string };
   try {
     body = await req.json();
   } catch {
     return json({ error: "Invalid JSON" }, 400);
   }
 
-  const { userId, message } = body;
+  const { userId, message, operator } = body;
   if (!userId || !message) {
     return json({ error: "userId and message are required" }, 400);
   }
@@ -74,6 +76,7 @@ Deno.serve(async (req: Request) => {
     direction: "outbound",
     received_at: new Date().toISOString(),
     replied: true,
+    operator: operator ?? null,
   });
 
   if (insertError) {
@@ -89,6 +92,16 @@ Deno.serve(async (req: Request) => {
   if (rpcError) {
     console.error("DB mark_user_replied error:", rpcError);
     return json({ error: "Failed to update replied status" }, 500);
+  }
+
+  // 4. 返信が完了したので対応中クレームを解放する（次の未返信で再度確保される）。
+  //    conversation_state がまだ無い場合は何もしない（エラーにしない）。
+  const { error: releaseError } = await supabase.rpc("release_conversation", {
+    target_user_id: userId,
+  });
+  if (releaseError) {
+    // 解放失敗は致命的ではない（手動でも外せる）のでログのみ。
+    console.error("DB release_conversation error:", releaseError);
   }
 
   return json({ success: true, userId, message });

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STAFF } from "@/lib/staff";
 import { useOperator, setOperator } from "@/lib/operator-store";
@@ -15,7 +16,14 @@ const NAV = [
 /** 全ページ共通のヘッダー（ナビ＋対応者セレクタ） */
 export function AppHeader() {
   const pathname = usePathname();
+  const router = useRouter();
   const operator = useOperator();
+
+  const logout = async () => {
+    await fetch("/api/logout", { method: "POST" });
+    router.replace("/login");
+    router.refresh();
+  };
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-4 border-b bg-card px-4">
@@ -72,9 +80,14 @@ export function AppHeader() {
             </button>
           ))}
         </div>
-        <span className="whitespace-nowrap rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-          モック
-        </span>
+        <button
+          onClick={logout}
+          className="inline-flex items-center gap-1 whitespace-nowrap rounded border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent"
+          title="ログアウト"
+        >
+          <LogOut className="h-3 w-3" />
+          ログアウト
+        </button>
       </div>
     </header>
   );

@@ -19,6 +19,7 @@ interface Props {
   onSelect: (userId: string) => void;
   showArchived: boolean;
   onToggleArchived: () => void;
+  loading?: boolean;
 }
 
 /** ① 会話リスト：未返信が上、緊急度ドット・経過時間・未返信件数・対応中・アーカイブ */
@@ -28,6 +29,7 @@ export function ConversationList({
   onSelect,
   showArchived,
   onToggleArchived,
+  loading = false,
 }: Props) {
   // アーカイブは既定で非表示。トグルONで表示。
   const visible = showArchived ? conversations : conversations.filter((c) => !c.archived);
@@ -118,7 +120,7 @@ export function ConversationList({
           })}
           {sorted.length === 0 && (
             <li className="px-4 py-8 text-center text-xs text-muted-foreground">
-              表示する会話がありません
+              {loading ? "読み込み中…" : "表示する会話がありません"}
             </li>
           )}
         </ul>

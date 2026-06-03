@@ -35,7 +35,7 @@ export function AnalysisPanel({ conversation }: Props) {
         <Sparkles className="h-4 w-4 shrink-0 text-violet-500" />
         <h2 className="whitespace-nowrap text-sm font-semibold">AI分析</h2>
         <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
-          ダミー
+          AI未接続（フェーズC）
         </Badge>
       </div>
       <ScrollArea className="flex-1">
@@ -45,7 +45,9 @@ export function AnalysisPanel({ conversation }: Props) {
               <CardTitle>要約</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm leading-relaxed text-muted-foreground">{conversation.summary}</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {conversation.summary || "（最新の問い合わせ本文。フェーズCでAI要約に置換）"}
+              </p>
             </CardContent>
           </Card>
 
@@ -61,6 +63,11 @@ export function AnalysisPanel({ conversation }: Props) {
               <p className="text-[11px] text-muted-foreground">
                 タグをクリックすると返信例（テンプレ）の編集へ移動します
               </p>
+              {conversation.tags.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  タグはフェーズCのAI抽出で表示されます。
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
                 {conversation.tags.map((t) => (
                   <Link

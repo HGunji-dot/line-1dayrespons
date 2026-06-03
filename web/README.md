@@ -1,7 +1,29 @@
-# LINE返信管理 UI（フェーズA：ダミーデータ版）
+# LINE返信管理 UI（フェーズB：Supabase 実接続）
 
-LINEメッセージを分析し、返信ドラフトを生成する **4ペイン管理画面** のモックです。
-まだDBやAIには繋いでいません（すべてダミーデータ）。見た目と操作感を確認する段階です。
+LINEメッセージを分析し、返信ドラフトを生成する **4ペイン管理画面** です。
+フェーズBで Supabase に実接続しました（会話の読み込み・返信送信・対応者記録・
+二重対応ガード・学習ログ・アーカイブが実データで動作）。AI分析（③タグ・要約・
+返信ドラフト自動生成）は**フェーズC**で接続します。
+
+## アーキテクチャ（フェーズB）
+
+- **アクセス方式**：すべて Next.js サーバ（API Route）経由。`service_role` 鍵は
+  サーバ側だけで使い、ブラウザには出さない（`lib/supabase/server.ts`）。
+- **認証**：スタッフ共有パスワード。ログインで署名付き HTTP-only クッキーを発行し、
+  `middleware.ts` で全ページ・全 API を保護（`lib/auth.ts`）。
+- **返信送信**：`/api/reply` → 既存 `send-reply` Edge Function（LINE Push＋outbound記録
+  ＋replied更新＋対応中クレーム解放）。送信スタッフ名を `messages.operator` に記録。
+- **Realtime**：DB トリガーが `conversation-updates` チャンネルに「変更通知」だけを
+  broadcast（顧客本文は載せない）。ブラウザは anon 鍵でこれを購読し、通知が来たら
+  Next.js サーバから権威データを再取得する（`lib/realtime.ts`）。
+  → 顧客メッセージ本文を anon 鍵に晒さずに複数スタッフ間で同期。
+
+## セットアップ（フェーズB）
+
+1. DB に `sql/init.sql` → `sql/phaseB.sql` を順に適用する。
+2. `web/.env.example` を `web/.env.local` にコピーして値を設定する。
+3. `cd web && npm install && npm run dev`。
+4. `http://localhost:3000` を開き、共有パスワードでログインする。
 
 ## 4ペイン構成
 

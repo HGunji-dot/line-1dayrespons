@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "LINE返信管理",
-  description: "LINEメッセージを分析し、返信ドラフトを生成する管理画面（モック）",
+  description: "LINEメッセージを分析し、返信ドラフトを生成する管理画面",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
