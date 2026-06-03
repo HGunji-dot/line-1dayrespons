@@ -69,15 +69,29 @@ Deno.serve(async (req: Request) => {
   const messageId = `push-${Date.now()}-${userId}`;
 
   // 2. outbound メッセージを DB に記録
-  const { error: insertError } = await supabase.from("messages").insert({
+  //    LINE 送信は既に成功しているため、ここで 500 を返すとオペレーターが再送し
+  //    顧客へ二重送信になる。operator 列が未マイグレーション（phaseB.sql 未適用）の
+  //    環境でも記録を残せるよう、operator 付き insert が失敗したら operator 無しで再試行する。
+  const baseRow = {
     user_id: userId,
     message_id: messageId,
     text: message,
     direction: "outbound",
     received_at: new Date().toISOString(),
     replied: true,
-    operator: operator ?? null,
-  });
+  };
+
+  let { error: insertError } = await supabase
+    .from("messages")
+    .insert({ ...baseRow, operator: operator ?? null });
+
+  if (insertError && operator != null) {
+    console.warn(
+      "outbound insert with operator failed; retrying without operator (apply phaseB.sql to record operator):",
+      insertError
+    );
+    ({ error: insertError } = await supabase.from("messages").insert(baseRow));
+  }
 
   if (insertError) {
     console.error("DB insert error (outbound):", insertError);

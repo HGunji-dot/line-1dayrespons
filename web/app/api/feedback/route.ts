@@ -64,7 +64,9 @@ export async function POST(req: Request) {
   }
 
   const supabase = supabaseAdmin();
-  const id = body.id ?? `fb-${body.userId}-${Date.now()}`;
+  // 主キー。Date.now() は同一ミリ秒で衝突しうるため UUID を使う
+  // （複数スタッフ/複数タブが同時に同じユーザーへ返信しても重複しない）。
+  const id = body.id ?? `fb-${body.userId}-${crypto.randomUUID()}`;
   const { error } = await supabase.from("reply_feedback").insert({
     id,
     user_id: body.userId,

@@ -43,9 +43,17 @@ export default function Page() {
   // 返信送信：send-reply 経由で LINE 送信＋DB更新し、学習ログにも記録する。
   const handleSend = async (userId: string, text: string, generated: string, operator: string) => {
     const conv = conversations.find((c) => c.userId === userId);
+    // 1) 返信送信（クリティカル）。失敗時のみ「送信失敗」として扱い、再送を促す。
     try {
       await call("/api/reply", { userId, message: text, operator });
-      // 学習フィードバックを記録（AI下書き generated と 送信文 sent のペア）
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "送信に失敗しました");
+      throw e;
+    }
+    setActionError(null);
+    // 2) 学習ログ記録はベストエフォート。LINE は既に送信済みなので、ここで失敗しても
+    //    「送信成功」は取り消さない（取り消すとオペレーターが再送し顧客へ二重送信になる）。
+    try {
       await call("/api/feedback", {
         userId,
         displayName: conv?.displayName,
@@ -56,12 +64,10 @@ export default function Page() {
         operator,
         status: "pending",
       });
-      setActionError(null);
-      await refetch();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "送信に失敗しました");
-      throw e;
+      console.error("学習ログの記録に失敗しました（返信送信は成功しています）:", e);
     }
+    await refetch();
   };
 
   // 対応開始（二重対応ガード）。サーバが確定後の対応者を返す。
