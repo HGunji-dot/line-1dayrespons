@@ -6,3 +6,19 @@ verify_jwt = false
 
 [functions.send-reply]
 verify_jwt = false
+
+# 以下は本番からの同期で取り込んだ関数。いずれも独自 Bearer 認証（ADMIN_SECRET / NOTIFY_SECRET 等）のため verify_jwt = false。
+[functions.get-unreplied]
+verify_jwt = false
+
+[functions.mark-replied]
+verify_jwt = false
+
+[functions.check-unreplied-notify]
+verify_jwt = false
+
+[functions.save-note]
+verify_jwt = false
+
+[functions.upload-image]
+verify_jwt = false
