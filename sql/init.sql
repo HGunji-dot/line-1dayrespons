@@ -12,8 +12,14 @@ CREATE TABLE IF NOT EXISTS messages (
     direction       TEXT        NOT NULL CHECK (direction IN ('inbound', 'outbound')),
     received_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     replied         BOOLEAN     NOT NULL DEFAULT FALSE,
-    replied_at      TIMESTAMPTZ
+    replied_at      TIMESTAMPTZ,
+    -- 返信した対応者（スタッフ名）。outbound のみ設定。inbound は NULL。
+    -- 未返信アラートの「担当者（＝前回返信した人）」表示に使う。
+    staff_name      TEXT
 );
+
+-- 既存DB向けマイグレーション（このスクリプトを再実行しても安全）
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS staff_name TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_messages_unreplied
     ON messages (received_at)
@@ -51,7 +57,8 @@ RETURNS TABLE (
     unreplied_count    BIGINT,
     oldest_received_at TIMESTAMPTZ,
     oldest_text        TEXT,
-    is_first_notify    BOOLEAN   -- true: 初回通知 / false: 再通知
+    is_first_notify    BOOLEAN,  -- true: 初回通知 / false: 再通知
+    last_operator      TEXT      -- 前回返信したスタッフ名（担当者）。一度も返信がなければ NULL
 )
 LANGUAGE sql
 STABLE
@@ -71,7 +78,17 @@ AS $$
                   AND m2.received_at < threshold_time
             )
         )                                                       AS oldest_text,
-        (nl.user_id IS NULL)                                    AS is_first_notify
+        (nl.user_id IS NULL)                                    AS is_first_notify,
+        -- そのユーザーへ最後に返信したスタッフ（最新 outbound の staff_name）
+        (
+            SELECT mo.staff_name
+            FROM messages mo
+            WHERE mo.user_id    = m.user_id
+              AND mo.direction  = 'outbound'
+              AND mo.staff_name IS NOT NULL
+            ORDER BY mo.received_at DESC
+            LIMIT 1
+        )                                                       AS last_operator
     FROM messages m
     LEFT JOIN notification_log nl ON nl.user_id = m.user_id
     WHERE m.direction   = 'inbound'

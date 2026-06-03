@@ -50,7 +50,8 @@
    **コマンド例**（`<project-ref>` は Project URL の `https://<project-ref>.supabase.co` の部分）
 
    ```bash
-   cd line-1dayrespons
+   # リポジトリのルート（supabase/config.toml がある場所）で実行する。
+   # ※ 旧版にあった `cd line-1dayrespons`（ネストした重複フォルダ）は古いコードのため使わない。
 
    npx supabase@latest secrets set --project-ref <project-ref> \
      LINE_CHANNEL_SECRET=<チャネルシークレット> \

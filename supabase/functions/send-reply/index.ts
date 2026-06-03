@@ -9,7 +9,10 @@
  *   POST /functions/v1/send-reply
  *   Authorization: Bearer <ADMIN_SECRET>
  *   Content-Type: application/json
- *   { "userId": "Uxxxxxxxxx", "message": "お問い合わせありがとうございます。" }
+ *   { "userId": "Uxxxxxxxxx", "message": "お問い合わせありがとうございます。", "staff": "水口" }
+ *
+ * staff（対応者名）は必須。outbound メッセージに staff_name として記録し、
+ * 未返信アラートの「担当者（＝前回返信した人）」表示に使う。
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -33,7 +36,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Unauthorized" }, 401);
   }
 
-  let body: { userId?: string; message?: string };
+  let body: { userId?: string; message?: string; staff?: string };
   try {
     body = await req.json();
   } catch {
@@ -41,8 +44,12 @@ Deno.serve(async (req: Request) => {
   }
 
   const { userId, message } = body;
+  const staff = body.staff?.trim();
   if (!userId || !message) {
     return json({ error: "userId and message are required" }, 400);
+  }
+  if (!staff) {
+    return json({ error: "staff (対応者名) is required" }, 400);
   }
 
   // 1. LINE Push API でメッセージ送信
@@ -74,6 +81,7 @@ Deno.serve(async (req: Request) => {
     direction: "outbound",
     received_at: new Date().toISOString(),
     replied: true,
+    staff_name: staff,
   });
 
   if (insertError) {
@@ -91,7 +99,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Failed to update replied status" }, 500);
   }
 
-  return json({ success: true, userId, message });
+  return json({ success: true, userId, message, staff });
 });
 
 function json(data: unknown, status = 200): Response {

@@ -88,16 +88,21 @@ def build_header(user_count: int, now: datetime, *, force_test: bool = False) ->
     return (
         f"\n{tag}【未返信アラート】{now.strftime('%Y/%m/%d %H:%M')} JST\n"
         f"{UNREPLIED_HOURS}時間以上返信がないお客様: {user_count} 件\n"
-        "（最古の未返信メッセージの受信日時・表示名）\n"
+        "（最古の未返信メッセージの受信日時・表示名・担当者）\n"
         + "─" * 24
     )
 
 
 def build_report_line(index: int, user: dict) -> str:
-    """1行: 受信日時 + 表示名（同一ユーザーは最古の未返信時刻）"""
+    """1行: 受信日時 + 表示名 + 担当者（同一ユーザーは最古の未返信時刻）
+
+    担当者 = そのお客様に前回返信したスタッフ（last_operator）。
+    まだ一度も返信がなければ「未割当」と表示する。
+    """
     received = format_received_at_jst(user["oldest_received_at"])
     name = user.get("display_name") or user["user_id"]
-    return f"\n{index}. {received}  {name}"
+    operator = user.get("last_operator") or "未割当"
+    return f"\n{index}. {received}  {name}  [担当: {operator}]"
 
 
 def split_into_messages(
