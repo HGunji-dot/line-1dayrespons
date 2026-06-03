@@ -6,7 +6,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { AppHeader } from "@/components/app-header";
+import { AppHeader, type HeaderStaff } from "@/components/app-header";
 import { ConversationList } from "@/components/conversation-list";
 import { ChatThread } from "@/components/chat-thread";
 import { AnalysisPanel } from "@/components/analysis-panel";
@@ -18,9 +18,11 @@ interface Props {
   initialConversations: Conversation[];
   // 実バックエンド(Supabase)接続時は true。送信が /api/send-reply 経由の実送信になる。
   useRealBackend: boolean;
+  // ログイン本人（実モードのみ）。あれば対応者＝本人に固定する。
+  currentStaff?: HeaderStaff | null;
 }
 
-export function ReplyConsole({ initialConversations, useRealBackend }: Props) {
+export function ReplyConsole({ initialConversations, useRealBackend, currentStaff }: Props) {
   const [conversations, setConversations] = React.useState<Conversation[]>(initialConversations);
   const [selectedUserId, setSelectedUserId] = React.useState<string | null>(
     initialConversations[0]?.userId ?? null
@@ -28,6 +30,52 @@ export function ReplyConsole({ initialConversations, useRealBackend }: Props) {
   const [showArchived, setShowArchived] = React.useState(false);
 
   const selected = conversations.find((c) => c.userId === selectedUserId) ?? null;
+
+  // 実モード：自分が見ている会話を「対応中」としてサーバーにハートビートする。
+  const heartbeat = React.useCallback(
+    (userId: string) => {
+      if (!useRealBackend || !userId) return;
+      fetch("/api/handling", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      }).catch(() => {});
+    },
+    [useRealBackend]
+  );
+
+  // 選択中の会話が変わるたびにハートビート（他スタッフに「対応中: 自分」を見せる）。
+  React.useEffect(() => {
+    if (selectedUserId) heartbeat(selectedUserId);
+  }, [selectedUserId, heartbeat]);
+
+  // 他スタッフの「対応中」状態を 8 秒ごとにポーリングして取り込む。
+  React.useEffect(() => {
+    if (!useRealBackend) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/handling", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          handling?: { userId: string; handlingByName: string }[];
+        };
+        if (cancelled || !data.handling) return;
+        const map = new Map(data.handling.map((h) => [h.userId, h.handlingByName]));
+        setConversations((prev) =>
+          prev.map((c) => ({ ...c, handlingBy: map.get(c.userId) ?? null }))
+        );
+      } catch {
+        /* ネットワーク断は次の周期で回復 */
+      }
+    };
+    poll();
+    const id = setInterval(poll, 8000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [useRealBackend]);
 
   // 送信：実モードでは /api/send-reply 経由で送信し、成功したら画面状態を更新する。
   // 失敗時は例外を投げ、返信ドラフト側でエラー表示する（画面状態は変えない）。
@@ -91,6 +139,7 @@ export function ReplyConsole({ initialConversations, useRealBackend }: Props) {
 
   // 対応開始：未対応の会話を自分（operator）のものとして確保する
   const handleClaim = (userId: string, operator: string) => {
+    if (useRealBackend) heartbeat(userId); // サーバーにも「自分が対応中」を伝える
     setConversations((prev) =>
       prev.map((c) =>
         c.userId === userId && !c.handlingBy ? { ...c, handlingBy: operator } : c
@@ -109,7 +158,7 @@ export function ReplyConsole({ initialConversations, useRealBackend }: Props) {
 
   return (
     <div className="flex h-screen flex-col">
-      <AppHeader />
+      <AppHeader currentStaff={currentStaff} />
 
       {/* 4ペイン本体 */}
       <main className="min-h-0 flex-1">

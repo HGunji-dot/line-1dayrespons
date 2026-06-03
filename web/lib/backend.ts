@@ -147,6 +147,133 @@ export async function getConversations(): Promise<Conversation[]> {
   return buildConversations(rows);
 }
 
+/** 返信のきっかけになった未返信 inbound（reply_events.inbound_context に保存する素材） */
+export interface InboundContext {
+  messageIds: string[]; // 返信対象だった inbound の message_id
+  texts: string[]; // その本文スナップショット（古い順）
+  count: number;
+}
+
+/**
+ * 送信時点で未返信だった inbound を取得する（reply_events の文脈・送信ガードに使う）。
+ * send-reply が replied=true にする前に呼ぶこと。実バックエンドが無ければ空。
+ */
+export async function getUnrepliedInbound(userId: string): Promise<InboundContext> {
+  if (!hasRealBackend()) return { messageIds: [], texts: [], count: 0 };
+
+  const url =
+    `${SUPABASE_URL}/rest/v1/messages` +
+    `?select=message_id,text,received_at` +
+    `&user_id=eq.${encodeURIComponent(userId)}` +
+    `&direction=eq.inbound&replied=eq.false&order=received_at.asc`;
+  const res = await fetch(url, {
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return { messageIds: [], texts: [], count: 0 };
+
+  const rows = (await res.json()) as { message_id: string; text: string | null }[];
+  return {
+    messageIds: rows.map((r) => r.message_id),
+    texts: rows.map((r) => r.text ?? ""),
+    count: rows.length,
+  };
+}
+
+/**
+ * 送信した返信を reply_events に記録する（活用初日からの学習データ蓄積）。
+ * 失敗しても送信自体は成立しているので、呼び出し側は throw せず警告に留めること。
+ */
+export async function recordReplyEvent(params: {
+  userId: string;
+  sentText: string;
+  staffId: string | null;
+  imageUrls?: string[];
+  inboundContext: InboundContext;
+}): Promise<{ ok: boolean; detail?: string }> {
+  if (!hasRealBackend()) return { ok: false, detail: "モックモード" };
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/reply_events`, {
+    method: "POST",
+    headers: {
+      apikey: SERVICE_KEY,
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({
+      user_id: params.userId,
+      sent_text: params.sentText,
+      staff_id: params.staffId,
+      image_urls: params.imageUrls ?? [],
+      inbound_context: {
+        message_ids: params.inboundContext.messageIds,
+        texts: params.inboundContext.texts,
+        count: params.inboundContext.count,
+      },
+    }),
+  });
+  if (!res.ok) return { ok: false, detail: `${res.status}: ${await res.text()}` };
+  return { ok: true };
+}
+
+// ─── 対応中（conversation_state）：ソフトな二重対応防止 ───
+// 無操作でこの分数を超えたら「対応中」を失効扱いにする（ハードロックにしない）。
+const HANDLING_TTL_MIN = 3;
+
+export interface HandlingState {
+  userId: string;
+  handlingByName: string;
+}
+
+/** 会話を「自分が対応中」としてハートビートする（開いた時・編集開始時に呼ぶ）。 */
+export async function upsertHandling(
+  userId: string,
+  staffId: string | null,
+  staffName: string
+): Promise<void> {
+  if (!hasRealBackend()) return;
+  const now = new Date().toISOString();
+  await fetch(`${SUPABASE_URL}/rest/v1/conversation_state`, {
+    method: "POST",
+    headers: {
+      apikey: SERVICE_KEY,
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      "Content-Type": "application/json",
+      // PK(user_id) 競合時は upsert（merge）。
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    },
+    body: JSON.stringify({
+      user_id: userId,
+      handling_by: staffId,
+      handling_by_name: staffName,
+      handling_at: now,
+      updated_at: now,
+    }),
+  });
+}
+
+/** 直近 HANDLING_TTL_MIN 分以内にハートビートのある「対応中」会話を返す。 */
+export async function getActiveHandling(): Promise<HandlingState[]> {
+  if (!hasRealBackend()) return [];
+  const since = new Date(Date.now() - HANDLING_TTL_MIN * 60_000).toISOString();
+  const url =
+    `${SUPABASE_URL}/rest/v1/conversation_state` +
+    `?select=user_id,handling_by_name,handling_at&handling_at=gt.${encodeURIComponent(since)}`;
+  const res = await fetch(url, {
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return [];
+  const rows = (await res.json()) as {
+    user_id: string;
+    handling_by_name: string | null;
+  }[];
+  return rows
+    .filter((r) => r.handling_by_name)
+    .map((r) => ({ userId: r.user_id, handlingByName: r.handling_by_name as string }));
+}
+
 export interface SendReplyResult {
   ok: boolean;
   status: number;

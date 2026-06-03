@@ -1,13 +1,18 @@
 name: Check Unreplied LINE Messages
 
 on:
-  schedule:
-    # GitHub Actions の cron は UTC。05:45 UTC = 日本時間 14:45（JST, UTC+9）
-    # GitHub Actions の schedule は高負荷時に遅延するため :00 丁度を避け :45 にオフセット
-    # → 典型的な 15 分前後の遅延を見込んで 15:00 JST 前後の到達を狙う
-    # 月〜金のみトリガー（1-5）。祝日スキップは check_unreplied.py 側で処理
-    - cron: '45 5 * * 1-5'
-  # 手動実行も可能（テスト用）
+  # ⚠️ スケジュール停止中（2026-06: 通知経路を Edge Function `check-unreplied-notify`
+  #    (cron-job.org が起動・日曜/祝日スキップ実装済) に一本化したため）。
+  #    本ワークフロー(python)を schedule で動かすと get_unreplied_users / record_notification を
+  #    Edge Function と二重に叩き、二重通知・notification_log の不整合になる。
+  #    手動実行(workflow_dispatch)はバックアップ/検証用に残す。再開する場合は下記を戻すこと。
+  # schedule:
+  #   # GitHub Actions の cron は UTC。05:45 UTC = 日本時間 14:45（JST, UTC+9）
+  #   # GitHub Actions の schedule は高負荷時に遅延するため :00 丁度を避け :45 にオフセット
+  #   # → 典型的な 15 分前後の遅延を見込んで 15:00 JST 前後の到達を狙う
+  #   # 月〜金のみトリガー（1-5）。祝日スキップは check_unreplied.py 側で処理
+  #   - cron: '45 5 * * 1-5'
+  # 手動実行のみ可能（テスト/バックアップ用）
   workflow_dispatch:
     inputs:
       force_report_test:

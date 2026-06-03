@@ -36,7 +36,17 @@
 
 ## 既知のギャップ / TODO
 
-- **`admin_notes` テーブルのスキーマがリポジトリ未収録**（`get-unreplied` / `save-note` が参照）。本番から定義を取得して `sql/` に追加すること。
-- **二重通知の確認**: 本番の通知は `check-unreplied-notify`（cron-job.org）。リポジトリの `.github/workflows/check-unreplied.yml`＋`scripts/check_unreplied.py`（GitHub Actions の旧python通知）が**まだ有効だと二重通知**になる。どちらか一方に寄せること（python 側の担当者表示も入れてあるが、通知経路は要一本化）。
+- ~~**`admin_notes` テーブルのスキーマがリポジトリ未収録**~~ → 解消（`sql/2026-06-03_admin_notes.sql` に追補。`admin_notes` ＋ `upsert_admin_note` RPC）。
+- ~~**二重通知**~~ → 解消（通知は `check-unreplied-notify`（cron-job.org・日曜/祝日スキップ実装済）に一本化。`.github/workflows/check-unreplied.yml` は `schedule` をコメントアウトし手動実行のみに変更）。
 - **web/ の実接続（フェーズ3）**: `web/lib/backend.ts` は messages を直読みする実装。本番の `get-unreplied` 方式と二重になりうるため整理が必要。実バックエンド接続はアクセス制御された環境でのみ有効化すること。
 - DB マイグレーションの適用記録は `sql/2026-06-03_add_staff_name_and_last_operator.sql`。
+
+## 活用フェーズのスキーマ（2026-06-03 追加・SQL Editor で要適用）
+
+- `sql/2026-06-03_activation_schema.sql` … `staff` / `reply_events` / `conversation_state` / `master_reviews` を新設（冪等）。
+  - `staff`: auth.users と表示名・権限(role: staff/master)・active を紐付け。
+  - `reply_events`: 送信返信を学習用に記録（`ai_draft`/`ai_meta` は AI フェーズ用の受け皿）。
+  - `conversation_state`: 「対応中」ソフト表示＋送信ガードの土台。
+  - `master_reviews`: マスター育成評価（却下→再構築の差分・編集率）。
+- 適用は Supabase SQL Editor（RLS は書かない＝サーバー仲介・service_role 前提）。
+- 設定: 一般サインアップ無効化、スタッフを招待、1人を `role='master'` に。
