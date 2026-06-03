@@ -13,7 +13,8 @@ import { useOperator } from "@/lib/operator-store";
 interface Props {
   conversation: Conversation | null;
   // sent=実際に送る文 / generated=AIの元下書き / operator=対応者
-  onSend: (userId: string, sent: string, generated: string, operator: string) => void;
+  // 実バックエンド接続時は実送信するため非同期。失敗時は例外を投げる。
+  onSend: (userId: string, sent: string, generated: string, operator: string) => Promise<void>;
   // 対応開始（会話を自分のものとしてクレーム）
   onClaim: (userId: string, operator: string) => void;
 }
@@ -23,6 +24,8 @@ export function ReplyDraft({ conversation, onSend, onClaim }: Props) {
   // 親から key={userId} で会話ごとに作り直すため、初期値を props から直接セットできる。
   const [text, setText] = React.useState(conversation?.suggestedReply ?? "");
   const [justSent, setJustSent] = React.useState(false);
+  const [sending, setSending] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
   const operator = useOperator();
 
   if (!conversation) {
@@ -45,10 +48,18 @@ export function ReplyDraft({ conversation, onSend, onClaim }: Props) {
     }
   };
 
-  const handleSend = () => {
-    if (!text.trim() || blocked || !operator) return;
-    onSend(conversation.userId, text, conversation.suggestedReply, operator);
-    setJustSent(true);
+  const handleSend = async () => {
+    if (!text.trim() || blocked || !operator || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      await onSend(conversation.userId, text, conversation.suggestedReply, operator);
+      setJustSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "送信に失敗しました");
+    } finally {
+      setSending(false);
+    }
   };
 
   // この会話のタグに紐づく登録済みテンプレ（挿入候補）
@@ -138,18 +149,24 @@ export function ReplyDraft({ conversation, onSend, onClaim }: Props) {
               variant="line"
               size="sm"
               onClick={handleSend}
-              disabled={blocked || !text.trim()}
+              disabled={blocked || !text.trim() || sending}
             >
               <Send className="h-4 w-4" />
-              送信（モック）
+              {sending ? "送信中…" : "送信"}
             </Button>
           </div>
         </div>
+        {error && (
+          <p className="flex items-center gap-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            {error}
+          </p>
+        )}
         {justSent && (
           <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-            ✓ <strong>{operator}</strong>として送信しました（モック）。AI下書きとの
+            ✓ <strong>{operator}</strong>として送信しました。AI下書きとの
             <strong>編集率 {editRatePct(conversation.suggestedReply, text)}%</strong>を
-            <a href="/learning" className="underline">学習ログ</a>に記録しました。本番では send-reply を呼びます。
+            <a href="/learning" className="underline">学習ログ</a>に記録しました。
           </p>
         )}
       </div>
