@@ -23,3 +23,6 @@ export const APP_PASSWORD = () => required("APP_PASSWORD");
 
 /** ログインセッションのクッキー署名鍵 */
 export const APP_SESSION_SECRET = () => required("APP_SESSION_SECRET");
+
+/** フェーズC: Claude（Anthropic）API キー。未設定なら AI 生成はフォールバック（任意）。 */
+export const ANTHROPIC_API_KEY = () => process.env.ANTHROPIC_API_KEY;

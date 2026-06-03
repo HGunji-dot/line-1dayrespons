@@ -16,15 +16,25 @@ interface Props {
   onSend: (userId: string, sent: string, generated: string, operator: string) => Promise<void> | void;
   // 対応開始（会話を自分のものとしてクレーム）
   onClaim: (userId: string, operator: string) => Promise<void> | void;
+  // AI下書きを強制再生成（?force=1）
+  onRegenerate?: () => void;
+  // AI下書き生成中
+  generating?: boolean;
 }
 
 /** ④ 返信ドラフト：対応者を選んでから編集・送信。二重対応はブロックする */
-export function ReplyDraft({ conversation, onSend, onClaim }: Props) {
+export function ReplyDraft({ conversation, onSend, onClaim, onRegenerate, generating }: Props) {
   // 親から key={userId} で会話ごとに作り直すため、初期値を props から直接セットできる。
   const [text, setText] = React.useState(conversation?.suggestedReply ?? "");
+  const [edited, setEdited] = React.useState(false);
   const [justSent, setJustSent] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const operator = useOperator();
+
+  // AI下書きは会話を開いた後に非同期で届く。未編集なら遅れて来た下書きを反映する。
+  React.useEffect(() => {
+    if (!edited && conversation?.suggestedReply) setText(conversation.suggestedReply);
+  }, [conversation?.suggestedReply, edited]);
 
   if (!conversation) {
     return (
@@ -107,6 +117,7 @@ export function ReplyDraft({ conversation, onSend, onClaim }: Props) {
                   disabled={blocked}
                   onClick={() => {
                     setText(tpl.body);
+                    setEdited(true);
                     setJustSent(false);
                   }}
                   title={tpl.body}
@@ -125,10 +136,11 @@ export function ReplyDraft({ conversation, onSend, onClaim }: Props) {
           onFocus={handleFocus}
           onChange={(e) => {
             setText(e.target.value);
+            setEdited(true);
             setJustSent(false);
           }}
           className="flex-1 resize-none text-sm leading-relaxed disabled:cursor-not-allowed disabled:bg-muted/40"
-          placeholder="返信内容を入力します（フェーズCでAI下書きを自動生成）…"
+          placeholder={generating ? "AI下書きを生成中…" : "返信内容を入力します（AI下書きが自動生成されます）…"}
         />
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">{text.length} 文字</span>
@@ -136,11 +148,15 @@ export function ReplyDraft({ conversation, onSend, onClaim }: Props) {
             <Button
               variant="outline"
               size="sm"
-              disabled={blocked || sending}
-              onClick={() => setText(conversation.suggestedReply)}
+              disabled={blocked || sending || generating || !onRegenerate}
+              onClick={() => {
+                setEdited(false);
+                onRegenerate?.();
+              }}
+              title="AIで返信ドラフトを作り直します"
             >
-              <RefreshCw className="h-4 w-4" />
-              クリア
+              <RefreshCw className={`h-4 w-4 ${generating ? "animate-spin" : ""}`} />
+              {generating ? "生成中…" : "再生成"}
             </Button>
             <Button
               variant="line"

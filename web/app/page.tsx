@@ -12,6 +12,7 @@ import { ChatThread } from "@/components/chat-thread";
 import { AnalysisPanel } from "@/components/analysis-panel";
 import { ReplyDraft } from "@/components/reply-draft";
 import { useConversations } from "@/lib/use-conversations";
+import { useAnalysis } from "@/lib/use-analysis";
 
 export default function Page() {
   const { conversations, loading, error, refetch } = useConversations();
@@ -27,7 +28,22 @@ export default function Page() {
     }
   }, [conversations, selectedUserId]);
 
-  const selected = conversations.find((c) => c.userId === selectedUserId) ?? null;
+  const selectedBase = conversations.find((c) => c.userId === selectedUserId) ?? null;
+
+  // フェーズC: 選択中の会話の AI 分析（要約・緊急度・タグ・返信ドラフト・RAG）を取得し、
+  // 会話ビューに上書きマージする（未取得・キー未設定時はプレースホルダのまま）。
+  const { analysis, loading: analysisLoading, regenerate } = useAnalysis(selectedUserId);
+  const selected = React.useMemo(() => {
+    if (!selectedBase) return null;
+    if (!analysis) return selectedBase;
+    return {
+      ...selectedBase,
+      summary: analysis.summary,
+      urgency: analysis.urgency,
+      tags: analysis.tags,
+      suggestedReply: analysis.suggestedReply,
+    };
+  }, [selectedBase, analysis]);
 
   async function call(path: string, body: unknown): Promise<unknown> {
     const res = await fetch(path, {
@@ -42,7 +58,8 @@ export default function Page() {
 
   // 返信送信：send-reply 経由で LINE 送信＋DB更新し、学習ログにも記録する。
   const handleSend = async (userId: string, text: string, generated: string, operator: string) => {
-    const conv = conversations.find((c) => c.userId === userId);
+    // 送信対象は選択中の会話。AI 分析済みのタグ等を学習ログに残すため selected を使う。
+    const conv = (selected?.userId === userId ? selected : null) ?? conversations.find((c) => c.userId === userId);
     // 1) 返信送信（クリティカル）。失敗時のみ「送信失敗」として扱い、再送を促す。
     try {
       await call("/api/reply", { userId, message: text, operator });
@@ -127,7 +144,7 @@ export default function Page() {
 
           {/* ③ AI分析（フェーズC で接続） */}
           <ResizablePanel defaultSize={23} minSize={16} className="bg-card">
-            <AnalysisPanel conversation={selected} />
+            <AnalysisPanel conversation={selected} analysis={analysis} loading={analysisLoading} />
           </ResizablePanel>
           <ResizableHandle withHandle />
 
@@ -138,6 +155,8 @@ export default function Page() {
               conversation={selected}
               onSend={handleSend}
               onClaim={handleClaim}
+              onRegenerate={regenerate}
+              generating={analysisLoading}
             />
           </ResizablePanel>
         </ResizablePanelGroup>

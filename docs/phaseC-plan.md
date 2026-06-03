@@ -1,6 +1,16 @@
 # フェーズC 設計プラン（AI生成・RAG）
 
-> 状態: **設計確定・実装は API キー取得後に着手**
+> 状態: **実装済み（Anthropic キーのみで動作）／Voyage ベクトルRAGは将来拡張**
+>
+> 実装サマリ:
+> - `/api/analyze`（オンデマンド生成＋`conversation_analysis` キャッシュ）
+> - 分析=Haiku 4.5／返信ドラフト=Sonnet 4.6（`web/lib/ai/claude.ts`、env gated）
+> - **RAG はタグ一致方式**で実装（`reply_feedback` の承認/修正済みを参照）。Voyage 不要で動作。
+>   Voyage キーが用意できたら `sql/phaseC.sql` のコメント部＋API をベクトル検索に差し替え。
+> - UI: `analysis-panel`（要約/緊急度/タグ/RAG根拠）・`reply-draft`（自動下書き＋再生成）接続済み。
+> - `ANTHROPIC_API_KEY` 未設定時は従来のプレースホルダにフォールバック。
+
+> 旧・当初設計（参考）: 状態は当初「設計確定・実装は API キー取得後に着手」
 > 前提: フェーズB（Supabase 実接続）まで完了済み（`web/` + `sql/init.sql` + `sql/phaseB.sql` + Edge Functions）。
 
 ## ゴール

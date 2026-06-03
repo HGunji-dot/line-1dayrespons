@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sparkles, Plus, Pencil } from "lucide-react";
-import type { Conversation, Urgency } from "@/lib/types";
+import type { Conversation, ConversationAnalysis, Urgency } from "@/lib/types";
 
 const urgencyLabel: Record<Urgency, { text: string; variant: "danger" | "warning" | "secondary" }> = {
   high: { text: "緊急度：高", variant: "danger" },
@@ -15,10 +15,12 @@ const urgencyLabel: Record<Urgency, { text: string; variant: "danger" | "warning
 
 interface Props {
   conversation: Conversation | null;
+  analysis?: ConversationAnalysis | null;
+  loading?: boolean;
 }
 
-/** ③ AI分析：要約・緊急度・ドメイン特化タグ（確信度つき）。今はダミー値 */
-export function AnalysisPanel({ conversation }: Props) {
+/** ③ AI分析：要約・緊急度・ドメイン特化タグ（確信度つき）。フェーズCでAI生成に接続 */
+export function AnalysisPanel({ conversation, analysis, loading }: Props) {
   if (!conversation) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
@@ -34,9 +36,19 @@ export function AnalysisPanel({ conversation }: Props) {
       <div className="flex items-center gap-2 border-b px-4 py-3">
         <Sparkles className="h-4 w-4 shrink-0 text-violet-500" />
         <h2 className="whitespace-nowrap text-sm font-semibold">AI分析</h2>
-        <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
-          AI未接続（フェーズC）
-        </Badge>
+        {loading ? (
+          <Badge variant="outline" className="ml-auto shrink-0 animate-pulse text-[10px]">
+            AI生成中…
+          </Badge>
+        ) : analysis?.aiConnected ? (
+          <Badge variant="success" className="ml-auto shrink-0 text-[10px]">
+            AI接続済み
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
+            AI未接続（キー未設定）
+          </Badge>
+        )}
       </div>
       <ScrollArea className="flex-1">
         <div className="space-y-3 p-4">
@@ -46,7 +58,7 @@ export function AnalysisPanel({ conversation }: Props) {
             </CardHeader>
             <CardContent>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                {conversation.summary || "（最新の問い合わせ本文。フェーズCでAI要約に置換）"}
+                {loading ? "生成中…" : conversation.summary || "（要約はAI接続時に表示されます）"}
               </p>
             </CardContent>
           </Card>
@@ -65,7 +77,7 @@ export function AnalysisPanel({ conversation }: Props) {
               </p>
               {conversation.tags.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  タグはフェーズCのAI抽出で表示されます。
+                  {loading ? "タグを抽出中…" : "抽出されたタグはありません。"}
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
@@ -105,12 +117,34 @@ export function AnalysisPanel({ conversation }: Props) {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle>類似の過去対応（RAG・モック）</CardTitle>
+              <CardTitle>類似の過去対応（RAG）</CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                フェーズCで、似た問い合わせの「正解返信」をベクトル検索して、ここに根拠として表示します。
-              </p>
+            <CardContent className="space-y-2">
+              {analysis && analysis.similarReplies.length > 0 ? (
+                analysis.similarReplies.map((s, i) => (
+                  <div key={i} className="rounded-md border bg-muted/30 p-2">
+                    <p className="mb-1 line-clamp-2 text-[11px] text-muted-foreground">
+                      お客様: {s.inbound || "（本文なし）"}
+                    </p>
+                    <p className="line-clamp-3 text-xs leading-relaxed">{s.reply}</p>
+                    {s.tags.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {s.tags.map((t) => (
+                          <span key={t} className="rounded bg-secondary px-1 text-[10px] text-muted-foreground">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {loading
+                    ? "検索中…"
+                    : "タグが一致する過去の正解返信（承認・修正済み）が蓄積されると、ここに根拠として表示されます。"}
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

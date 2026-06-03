@@ -22,6 +22,25 @@ export interface AnalysisTag {
   confidence: number; // 0..1
 }
 
+/** RAG の根拠（タグ一致でヒットした過去の正解返信） */
+export interface SimilarReply {
+  tags: string[];
+  inbound: string;
+  reply: string;
+}
+
+/** フェーズC: /api/analyze が返す AI 生成結果（会話単位） */
+export interface ConversationAnalysis {
+  summary: string;
+  urgency: Urgency;
+  tags: AnalysisTag[];
+  suggestedReply: string;
+  similarReplies: SimilarReply[];
+  aiConnected: boolean; // 実生成かフォールバックか
+  model: string;
+  generatedAt: string;
+}
+
 /** 1人の顧客との会話。messages を user_id でまとめたビュー */
 export interface Conversation {
   userId: string;
