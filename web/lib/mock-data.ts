@@ -41,7 +41,7 @@ export const conversations: Conversation[] = [
     summary: "先月購入したシマトネリコの葉が枯れてきており、枯れ保証の対象になるか確認したい。",
     urgency: "high",
     tags: [
-      { label: "枯れ保証", confidence: 0.94 },
+      { label: "枯れ、芽吹かない", confidence: 0.94 },
       { label: "シマトネリコ", confidence: 0.9 },
       { label: "枯れている", confidence: 0.88 },
       { label: "クレーム", confidence: 0.41 },
@@ -64,7 +64,7 @@ export const conversations: Conversation[] = [
     summary: "オリーブの木の入荷時期を知りたい。希望は6月中の配送。",
     urgency: "medium",
     tags: [
-      { label: "入荷時期", confidence: 0.92 },
+      { label: "在庫確認・入荷連絡", confidence: 0.92 },
       { label: "オリーブ", confidence: 0.87 },
       { label: "配送", confidence: 0.6 },
     ],
@@ -86,7 +86,7 @@ export const conversations: Conversation[] = [
     summary: "モンステラの水やり頻度についての質問。育て方サポートの範囲。",
     urgency: "low",
     tags: [
-      { label: "育て方相談", confidence: 0.9 },
+      { label: "植木の管理・土・トラブル", confidence: 0.9 },
       { label: "モンステラ", confidence: 0.86 },
       { label: "水やり", confidence: 0.83 },
     ],
@@ -108,7 +108,7 @@ export const conversations: Conversation[] = [
     summary: "届いたシンボルツリーの鉢が割れていた。交換と再配送を希望。",
     urgency: "high",
     tags: [
-      { label: "配送トラブル", confidence: 0.93 },
+      { label: "注文・出荷・キャンセル", confidence: 0.93 },
       { label: "破損", confidence: 0.91 },
       { label: "交換希望", confidence: 0.84 },
       { label: "クレーム", confidence: 0.72 },
@@ -132,7 +132,7 @@ export const conversations: Conversation[] = [
     summary: "営業時間の問い合わせ。対応済み。",
     urgency: "low",
     tags: [
-      { label: "営業時間", confidence: 0.95 },
+      { label: "来社・見学・持ち帰り", confidence: 0.95 },
       { label: "店舗案内", confidence: 0.7 },
     ],
     suggestedReply:
