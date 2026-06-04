@@ -34,6 +34,7 @@ export interface Conversation {
   elapsedLabel: string; // 一覧に出す経過表記（例: 約26時間）
   handlingBy?: string | null; // 現在この会話を対応中のスタッフ（二重対応防止用のクレーム）
   archived?: boolean; // 処理済みでアーカイブ（一覧から非表示）
+  internal?: boolean; // 社内/ノイズ会話（スタッフ本人・ボット通知）。既定で一覧から隠す
   // --- 以下は本来 AI が生成する。今はダミー ---
   summary: string; // 顧客メッセージの要約
   urgency: Urgency; // 緊急度

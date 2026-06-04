@@ -18,6 +18,7 @@ export default function Page() {
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [selectedUserId, setSelectedUserId] = React.useState<string | null>(null);
   const [showArchived, setShowArchived] = React.useState(false);
+  const [showInternal, setShowInternal] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
 
@@ -35,7 +36,9 @@ export default function Page() {
         }
         const convs: Conversation[] = data.conversations ?? [];
         setConversations(convs);
-        setSelectedUserId((prev) => prev ?? convs[0]?.userId ?? null);
+        // 既定の選択は「社内/ノイズでない」最初の会話
+        const firstReal = convs.find((c) => !c.internal && !c.archived) ?? convs[0];
+        setSelectedUserId((prev) => prev ?? firstReal?.userId ?? null);
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "通信エラー");
       } finally {
@@ -103,10 +106,19 @@ export default function Page() {
     );
   };
 
-  // タグ推定/修正/確定の反映：AI分析パネル → 会話state → 返信ドラフト生成へ流す
-  const handleTagsChange = (userId: string, tags: Conversation["tags"], confirmed: boolean) => {
+  // タグ推定/修正/確定・要約の反映：AI分析パネル → 会話state → 返信ドラフト生成へ流す
+  const handleTagsChange = (
+    userId: string,
+    tags: Conversation["tags"],
+    confirmed: boolean,
+    summary?: string
+  ) => {
     setConversations((prev) =>
-      prev.map((c) => (c.userId === userId ? { ...c, tags, tagsConfirmed: confirmed } : c))
+      prev.map((c) =>
+        c.userId === userId
+          ? { ...c, tags, tagsConfirmed: confirmed, summary: summary ?? c.summary }
+          : c
+      )
     );
   };
 
@@ -153,6 +165,8 @@ export default function Page() {
               onSelect={setSelectedUserId}
               showArchived={showArchived}
               onToggleArchived={() => setShowArchived((v) => !v)}
+              showInternal={showInternal}
+              onToggleInternal={() => setShowInternal((v) => !v)}
             />
           </ResizablePanel>
           <ResizableHandle withHandle />

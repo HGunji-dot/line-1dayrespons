@@ -12,7 +12,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getProvider } from "@/lib/llm/provider";
-import { TAG_SYSTEM, buildTagPrompt, parseTagsFromText } from "@/lib/prompt";
+import { ANALYSIS_SYSTEM, buildAnalysisPrompt, parseAnalysis } from "@/lib/prompt";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,26 +57,29 @@ export async function POST(req: Request) {
     .join("\n");
 
   if (!inboundText) {
-    return NextResponse.json({ tags: [], model: null, note: "inbound本文が無い会話です" });
+    return NextResponse.json({ tags: [], summary: "", model: null, note: "inbound本文が無い会話です" });
   }
 
-  // 3. 推定
+  // 3. 分析（要約＋タグ）
+  let summary: string;
   let tags: Array<{ label: string; confidence: number }>;
   let model: string;
   try {
     const out = await getProvider().generate({
-      systemPrompt: TAG_SYSTEM,
-      userPrompt: buildTagPrompt({ inboundText, allowedTags }),
-      maxTokens: 256,
+      systemPrompt: ANALYSIS_SYSTEM,
+      userPrompt: buildAnalysisPrompt({ inboundText, allowedTags }),
+      maxTokens: 512,
     });
     model = out.model;
-    tags = parseTagsFromText(out.text, allowedTags);
+    const parsed = parseAnalysis(out.text, allowedTags);
+    summary = parsed.summary;
+    tags = parsed.tags;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: `tag estimation failed: ${msg}` }, { status: 502 });
+    return NextResponse.json({ error: `analysis failed: ${msg}` }, { status: 502 });
   }
 
-  // 4. 保存（未確定の会話なら確定タグ tags も推定で初期化。確定済みなら estimated だけ更新）
+  // 4. 保存（要約は常に更新。確定タグ tags は未確定の会話のみ推定で初期化）
   const existing = await supabase
     .from("shadow_analysis")
     .select("confirmed")
@@ -87,6 +90,7 @@ export async function POST(req: Request) {
   const upsertRow: Record<string, unknown> = {
     user_id: userId,
     estimated_tags: tags,
+    summary,
     model,
     updated_at: new Date().toISOString(),
   };
@@ -97,5 +101,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `保存失敗: ${up.error.message}` }, { status: 500 });
   }
 
-  return NextResponse.json({ tags, model });
+  return NextResponse.json({ tags, summary, model });
 }

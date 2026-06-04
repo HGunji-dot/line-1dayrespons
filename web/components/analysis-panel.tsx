@@ -11,8 +11,9 @@ import type { AnalysisTag, Conversation } from "@/lib/types";
 
 interface Props {
   conversation: Conversation | null;
-  // 確定タグを親(page)へ反映し、返信ドラフト生成に流す
-  onTagsChange: (userId: string, tags: AnalysisTag[], confirmed: boolean) => void;
+  // 確定タグ・要約を親(page)へ反映し、返信ドラフト生成に流す。
+  // summary を省略すると現在の要約を据え置く。
+  onTagsChange: (userId: string, tags: AnalysisTag[], confirmed: boolean, summary?: string) => void;
 }
 
 /** ③ AI分析：固定タグマスタからのAIタグ推定 → 人が修正 → 確定保存 */
@@ -39,7 +40,7 @@ export function AnalysisPanel({ conversation, onTagsChange }: Props) {
     );
   }
 
-  const { userId, tags, tagsConfirmed } = conversation;
+  const { userId, tags, tagsConfirmed, summary } = conversation;
 
   const handleEstimate = async () => {
     setEstimating(true);
@@ -52,10 +53,10 @@ export function AnalysisPanel({ conversation, onTagsChange }: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.error ?? `推定失敗 (${res.status})`);
+        setError(data?.error ?? `分析失敗 (${res.status})`);
         return;
       }
-      onTagsChange(userId, data.tags ?? [], false);
+      onTagsChange(userId, data.tags ?? [], false, data.summary ?? "");
     } catch (e) {
       setError(e instanceof Error ? e.message : "通信エラー");
     } finally {
@@ -122,12 +123,27 @@ export function AnalysisPanel({ conversation, onTagsChange }: Props) {
         <div className="space-y-3 p-4">
           <Card>
             <CardHeader className="pb-2">
+              <CardTitle>要約</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {summary ? (
+                <p className="text-sm leading-relaxed text-muted-foreground">{summary}</p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  「AIで分析」を押すと、要約とタグを生成します。
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
               <CardTitle>抽出タグ（固定マスタから）</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {!hasTags && (
                 <p className="text-[11px] text-muted-foreground">
-                  まだタグがありません。「AIでタグ推定」を押すと、固定タグから候補を出します。
+                  まだタグがありません。「AIで分析」を押すと、固定タグから候補を出します。
                 </p>
               )}
 
@@ -201,12 +217,12 @@ export function AnalysisPanel({ conversation, onTagsChange }: Props) {
                 <Button variant="outline" size="sm" onClick={handleEstimate} disabled={estimating}>
                   {estimating ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : hasTags ? (
+                  ) : summary || hasTags ? (
                     <RefreshCw className="h-4 w-4" />
                   ) : (
                     <Sparkles className="h-4 w-4" />
                   )}
-                  {estimating ? "推定中…" : hasTags ? "再推定" : "AIでタグ推定"}
+                  {estimating ? "分析中…" : summary || hasTags ? "再分析" : "AIで分析"}
                 </Button>
                 <Button
                   variant="line"

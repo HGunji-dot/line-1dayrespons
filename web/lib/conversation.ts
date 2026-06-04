@@ -44,6 +44,19 @@ function avatarColorFor(userId: string): string {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
+// スタッフ本人のLINE名（社内会話の判定用）。STAFF とは別に実データの表示名で持つ。
+const STAFF_NAMES = ["郡司", "酢崎", "水口", "小沼"];
+
+// 社内/ノイズと判定する本文パターン（ボットの通知など）
+const NOISE_TEXT = /未返信アラート/;
+
+/** その会話が「社内/ノイズ」か（スタッフ本人の会話・ボット通知）。誤判定に備えUIで表示切替できる。 */
+function isInternal(displayName: string, list: ShadowMessageRow[]): boolean {
+  if (STAFF_NAMES.some((n) => displayName.includes(n))) return true;
+  if (list.some((r) => r.text && NOISE_TEXT.test(r.text))) return true;
+  return false;
+}
+
 /** 最新メッセージからの経過を日本語ラベルにする（nowMs は呼び出し側から渡す） */
 export function elapsedLabel(lastMs: number, nowMs: number, unreplied: number): string {
   if (unreplied === 0) return "返信済み";
@@ -113,6 +126,7 @@ export function buildConversations(
       tags,
       tagsConfirmed: analysis?.confirmed ?? false,
       suggestedReply: "",
+      internal: isInternal(displayName, list),
     });
   }
 

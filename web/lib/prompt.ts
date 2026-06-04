@@ -94,19 +94,18 @@ export function buildUserPrompt(params: {
 //   出力は JSON 配列に固定し、確信度つきで返させる。
 // ─────────────────────────────────────────────
 
-export const TAG_SYSTEM = `あなたは植木・観葉植物ショップのLINE問い合わせを分類する担当です。
-お客様のメッセージを読み、あらかじめ定義された「タグ一覧」の中から該当するものを選びます。
+export const ANALYSIS_SYSTEM = `あなたは植木・観葉植物ショップのLINE問い合わせを分析する担当です。
+お客様のメッセージを読み、(1) 短い要約 と (2) あらかじめ定義された「タグ一覧」からの分類 を行います。
 
 # 厳守ルール
-- タグは必ず与えられた一覧の中の文字列【そのまま】を使う。一覧に無い語は絶対に作らない。
-- 本当に当てはまるものだけを選ぶ。無理に複数選ばない（0〜3個が目安）。
-- 各タグに confidence（0.0〜1.0）を付ける。確信が低いものは入れない。
-- 出力は JSON 配列のみ。説明文やコードフェンスは付けない。
-  形式: [{"label":"（一覧の語）","confidence":0.0}]
-- 該当が無ければ [] を返す。`;
+- 要約(summary)は日本語で1〜2文。お客様が何を求めているかを簡潔に。創作・推測で事実を足さない。
+- タグ(tags)は必ず与えられた一覧の中の文字列【そのまま】を使う。一覧に無い語は絶対に作らない。
+- 本当に当てはまるタグだけを選ぶ（0〜3個が目安）。各タグに confidence(0.0〜1.0)を付け、確信が低いものは入れない。
+- 出力は JSON オブジェクトのみ。説明文やコードフェンスは付けない。
+  形式: {"summary":"…","tags":[{"label":"（一覧の語）","confidence":0.0}]}`;
 
-/** タグ推定の user プロンプト。allowedTags はマスタの語のみ。 */
-export function buildTagPrompt(params: { inboundText: string; allowedTags: string[] }): string {
+/** 分析（要約＋タグ）の user プロンプト。allowedTags はマスタの語のみ。 */
+export function buildAnalysisPrompt(params: { inboundText: string; allowedTags: string[] }): string {
   const { inboundText, allowedTags } = params;
   return [
     "# タグ一覧（この中の語だけを使う）",
@@ -116,40 +115,48 @@ export function buildTagPrompt(params: { inboundText: string; allowedTags: strin
     inboundText.trim() || "（本文なし）",
     "",
     "# 出力",
-    'JSON配列のみ。例: [{"label":"在庫確認・入荷連絡","confidence":0.82}]',
+    'JSONオブジェクトのみ。例: {"summary":"オリーブの在庫と入荷時期の問い合わせ。","tags":[{"label":"在庫確認・入荷連絡","confidence":0.82}]}',
   ].join("\n");
 }
 
-/** LLM応答テキストからタグ配列を頑健に取り出す。allowed 外は捨てる。 */
-export function parseTagsFromText(
-  text: string,
-  allowedTags: string[]
-): Array<{ label: string; confidence: number }> {
+export interface AnalysisResult {
+  summary: string;
+  tags: Array<{ label: string; confidence: number }>;
+}
+
+/** LLM応答から {summary, tags} を頑健に取り出す。allowed 外のタグは捨てる。 */
+export function parseAnalysis(text: string, allowedTags: string[]): AnalysisResult {
   const allowed = new Set(allowedTags);
   let raw = text.trim();
-  // コードフェンスや前後の説明が混じっても拾えるよう、最初の [ ... ] を抜き出す
-  const start = raw.indexOf("[");
-  const end = raw.lastIndexOf("]");
+  // コードフェンスや前後の説明が混じっても拾えるよう、最初の { ... } を抜き出す
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
   if (start !== -1 && end !== -1 && end > start) raw = raw.slice(start, end + 1);
 
-  let arr: unknown;
+  let obj: unknown;
   try {
-    arr = JSON.parse(raw);
+    obj = JSON.parse(raw);
   } catch {
-    return [];
+    return { summary: "", tags: [] };
   }
-  if (!Array.isArray(arr)) return [];
+  if (!obj || typeof obj !== "object") return { summary: "", tags: [] };
 
-  const out: Array<{ label: string; confidence: number }> = [];
+  const summaryRaw = (obj as { summary?: unknown }).summary;
+  const summary = typeof summaryRaw === "string" ? summaryRaw.trim() : "";
+
+  const tagsRaw = (obj as { tags?: unknown }).tags;
+  const tags: Array<{ label: string; confidence: number }> = [];
   const seen = new Set<string>();
-  for (const item of arr) {
-    if (!item || typeof item !== "object") continue;
-    const label = (item as { label?: unknown }).label;
-    const conf = (item as { confidence?: unknown }).confidence;
-    if (typeof label !== "string" || !allowed.has(label) || seen.has(label)) continue;
-    const confidence = typeof conf === "number" && conf >= 0 && conf <= 1 ? conf : 0.5;
-    out.push({ label, confidence });
-    seen.add(label);
+  if (Array.isArray(tagsRaw)) {
+    for (const item of tagsRaw) {
+      if (!item || typeof item !== "object") continue;
+      const label = (item as { label?: unknown }).label;
+      const conf = (item as { confidence?: unknown }).confidence;
+      if (typeof label !== "string" || !allowed.has(label) || seen.has(label)) continue;
+      const confidence = typeof conf === "number" && conf >= 0 && conf <= 1 ? conf : 0.5;
+      tags.push({ label, confidence });
+      seen.add(label);
+    }
   }
-  return out;
+  return { summary, tags };
 }

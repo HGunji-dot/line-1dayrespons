@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { Conversation } from "@/lib/types";
-import { Archive } from "lucide-react";
+import { Archive, EyeOff } from "lucide-react";
 
 const urgencyDot: Record<Conversation["urgency"], string> = {
   high: "bg-rose-500",
@@ -19,6 +19,8 @@ interface Props {
   onSelect: (userId: string) => void;
   showArchived: boolean;
   onToggleArchived: () => void;
+  showInternal: boolean;
+  onToggleInternal: () => void;
 }
 
 /** ① 会話リスト：未返信が上、緊急度ドット・経過時間・未返信件数・対応中・アーカイブ */
@@ -28,9 +30,13 @@ export function ConversationList({
   onSelect,
   showArchived,
   onToggleArchived,
+  showInternal,
+  onToggleInternal,
 }: Props) {
-  // アーカイブは既定で非表示。トグルONで表示。
-  const visible = showArchived ? conversations : conversations.filter((c) => !c.archived);
+  // 社内/ノイズ会話とアーカイブは既定で非表示。トグルONで表示。
+  const visible = conversations.filter(
+    (c) => (showArchived || !c.archived) && (showInternal || !c.internal)
+  );
 
   // 未返信(>0)を上に、その中では最も古い未返信を先頭に
   const sorted = [...visible].sort((a, b) => {
@@ -40,8 +46,11 @@ export function ConversationList({
     return a.lastMessageAt.localeCompare(b.lastMessageAt);
   });
 
-  const unrepliedTotal = conversations.filter((c) => c.unrepliedCount > 0 && !c.archived).length;
+  const unrepliedTotal = conversations.filter(
+    (c) => c.unrepliedCount > 0 && !c.archived && !c.internal
+  ).length;
   const archivedCount = conversations.filter((c) => c.archived).length;
+  const internalCount = conversations.filter((c) => c.internal).length;
 
   return (
     <div className="flex h-full flex-col">
@@ -52,18 +61,32 @@ export function ConversationList({
             {unrepliedTotal}件 未返信
           </Badge>
         </div>
-        {archivedCount > 0 && (
-          <button
-            onClick={onToggleArchived}
-            className={cn(
-              "mt-1.5 inline-flex items-center gap-1 text-[11px] transition-colors",
-              showArchived ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Archive className="h-3 w-3" />
-            {showArchived ? "アーカイブを隠す" : "アーカイブを表示"}（{archivedCount}）
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-x-3">
+          {archivedCount > 0 && (
+            <button
+              onClick={onToggleArchived}
+              className={cn(
+                "mt-1.5 inline-flex items-center gap-1 text-[11px] transition-colors",
+                showArchived ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Archive className="h-3 w-3" />
+              {showArchived ? "アーカイブを隠す" : "アーカイブを表示"}（{archivedCount}）
+            </button>
+          )}
+          {internalCount > 0 && (
+            <button
+              onClick={onToggleInternal}
+              className={cn(
+                "mt-1.5 inline-flex items-center gap-1 text-[11px] transition-colors",
+                showInternal ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <EyeOff className="h-3 w-3" />
+              {showInternal ? "社内/ノイズを隠す" : "社内/ノイズを表示"}（{internalCount}）
+            </button>
+          )}
+        </div>
       </div>
       <ScrollArea className="flex-1">
         <ul className="divide-y">
