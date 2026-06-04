@@ -63,6 +63,10 @@ export function ReplyDraft({ conversation, onSend, onClaim }: Props) {
   //   読み取り＋Anthropic呼びのみで、実LINEには影響しない。
   const handleGenerate = async () => {
     if (blocked || generating) return;
+    if (tagLabels.length === 0) {
+      setGenNotice("タグが未設定です。AI生成にはタグが必要です（タグ推定はフェーズ③で追加予定）。");
+      return;
+    }
     const lastInbound = [...conversation.messages]
       .reverse()
       .find((m) => m.direction === "inbound");

@@ -11,16 +11,41 @@ import { ConversationList } from "@/components/conversation-list";
 import { ChatThread } from "@/components/chat-thread";
 import { AnalysisPanel } from "@/components/analysis-panel";
 import { ReplyDraft } from "@/components/reply-draft";
-import { conversations as initialConversations } from "@/lib/mock-data";
 import type { Conversation } from "@/lib/types";
 import { addFeedback } from "@/lib/feedback-store";
 
 export default function Page() {
-  const [conversations, setConversations] = React.useState<Conversation[]>(initialConversations);
-  const [selectedUserId, setSelectedUserId] = React.useState<string | null>(
-    initialConversations[0]?.userId ?? null
-  );
+  const [conversations, setConversations] = React.useState<Conversation[]>([]);
+  const [selectedUserId, setSelectedUserId] = React.useState<string | null>(null);
   const [showArchived, setShowArchived] = React.useState(false);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+
+  // 並行世界の会話（shadow_messages）を取得する。
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/conversations");
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          setLoadError(data?.error ?? `読み込み失敗 (${res.status})`);
+          return;
+        }
+        const convs: Conversation[] = data.conversations ?? [];
+        setConversations(convs);
+        setSelectedUserId((prev) => prev ?? convs[0]?.userId ?? null);
+      } catch (e) {
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : "通信エラー");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const selected = conversations.find((c) => c.userId === selectedUserId) ?? null;
 
@@ -94,6 +119,15 @@ export default function Page() {
   return (
     <div className="flex h-screen flex-col">
       <AppHeader />
+
+      {loadError && (
+        <p className="bg-rose-50 px-4 py-2 text-xs text-rose-700">
+          会話の読み込みに失敗しました：{loadError}（shadow_messages の取込が済んでいるか確認してください）
+        </p>
+      )}
+      {loading && conversations.length === 0 && !loadError && (
+        <p className="px-4 py-2 text-xs text-muted-foreground">並行世界の会話を読み込み中…</p>
+      )}
 
       {/* 4ペイン本体 */}
       <main className="min-h-0 flex-1">
