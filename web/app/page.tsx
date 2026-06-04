@@ -12,7 +12,7 @@ import { ChatThread } from "@/components/chat-thread";
 import { AnalysisPanel } from "@/components/analysis-panel";
 import { ReplyDraft } from "@/components/reply-draft";
 import type { Conversation } from "@/lib/types";
-import { addFeedback } from "@/lib/feedback-store";
+import { editRatePct } from "@/lib/diff";
 
 export default function Page() {
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
@@ -50,23 +50,29 @@ export default function Page() {
   const selected = conversations.find((c) => c.userId === selectedUserId) ?? null;
 
   // 送信（モック）：未返信フラグを解除し、送信メッセージを履歴に追加。
-  // さらに AI下書き(generated) と 送信文(sent) を学習フィードバックとして記録する。
+  // さらに AI下書き(generated) と 送信文(sent) を shadow_feedback に永続化する
+  // （フェーズ④の学習ループ。実LINEには飛ばない＝モック）。
   const handleSend = (userId: string, text: string, generated: string, operator: string) => {
     const conv = conversations.find((c) => c.userId === userId);
     const now = new Date().toISOString();
     if (conv) {
-      addFeedback({
-        id: `fb-${userId}-${Date.now()}`,
-        userId,
-        displayName: conv.displayName,
-        tags: conv.tags.map((t) => t.label),
-        inboundText: conv.messages.find((m) => m.direction === "inbound")?.text ?? "",
-        generated,
-        sent: text,
-        operator,
-        createdAt: now,
-        status: "pending",
-      });
+      const inboundText =
+        [...conv.messages].reverse().find((m) => m.direction === "inbound")?.text ?? "";
+      // 非致命的に記録（失敗してもモック送信のUIは進める）
+      void fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          displayName: conv.displayName,
+          tags: conv.tags.map((t) => t.label),
+          inboundText,
+          generated,
+          sent: text,
+          operator,
+          editRate: editRatePct(generated, text),
+        }),
+      }).catch(() => {});
     }
     setConversations((prev) =>
       prev.map((c) => {

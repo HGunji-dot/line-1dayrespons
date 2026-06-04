@@ -60,3 +60,71 @@ CREATE TABLE IF NOT EXISTS shadow_analysis (
     model          TEXT,                               -- 推定に使ったモデル
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ─────────────────────────────────────────────
+-- shadow_feedback: 採点・学習ループ（フェーズ④）
+--   並行世界での「送信（モック）」と採点を記録する。実LINEには飛ばない。
+--   承認(approved)→sent / 却下(rejected)→corrected_reply が「正解例」になり、
+--   match_examples 経由で次の生成に還元される（磨くほど良くなる）。
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS shadow_feedback (
+    id              BIGSERIAL   PRIMARY KEY,
+    user_id         TEXT        NOT NULL,
+    display_name    TEXT,
+    tags            TEXT[]      NOT NULL DEFAULT '{}',  -- 確定タグ
+    inbound_text    TEXT,                               -- きっかけの顧客メッセージ
+    generated       TEXT        NOT NULL DEFAULT '',    -- AIの下書き
+    sent            TEXT        NOT NULL DEFAULT '',    -- 採用した最終文（モック送信）
+    corrected_reply TEXT,                               -- 却下時に人が入れた正解返信
+    operator        TEXT,                               -- 対応スタッフ
+    status          TEXT        NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending','approved','rejected')),
+    edit_rate       INT,                                -- generated→sent の編集率%（任意）
+    archived        BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    approved_at     TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_shadow_feedback_status
+    ON shadow_feedback (status, created_at DESC);
+
+-- ─────────────────────────────────────────────
+-- match_examples を shadow_feedback 読みに切替（並行世界の学習を生成へ還元）。
+--   approved → sent を、rejected＋正解あり → corrected_reply を「正解例」とする。
+--   archived は除外。返り値の sent はその「正解例」テキスト。
+--   ※ /api/generate はこの関数の戻り（id, inbound_text, sent, tags, similarity）に依存。
+-- ─────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION match_examples(
+    inbound    TEXT,
+    tag_labels TEXT[],
+    limit_n    INT DEFAULT 4
+)
+RETURNS TABLE (
+    id           BIGINT,
+    inbound_text TEXT,
+    sent         TEXT,
+    tags         TEXT[],
+    similarity   REAL
+)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT
+        f.id,
+        f.inbound_text,
+        CASE
+            WHEN f.status = 'approved' THEN f.sent
+            ELSE COALESCE(NULLIF(btrim(f.corrected_reply), ''), f.sent)
+        END AS sent,
+        f.tags,
+        similarity(COALESCE(f.inbound_text, ''), COALESCE(inbound, '')) AS similarity
+    FROM shadow_feedback f
+    WHERE f.archived = FALSE
+      AND f.tags && tag_labels
+      AND (
+            (f.status = 'approved' AND btrim(f.sent) <> '')
+         OR (f.status = 'rejected' AND btrim(COALESCE(f.corrected_reply, '')) <> '')
+      )
+    ORDER BY similarity DESC, f.approved_at DESC NULLS LAST
+    LIMIT GREATEST(limit_n, 0)
+$$;

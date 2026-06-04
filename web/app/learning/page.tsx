@@ -10,18 +10,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar } from "@/components/ui/avatar";
 import { DiffView, DiffLegend } from "@/components/diff-view";
-import {
-  useFeedback,
-  setFeedbackStatus,
-  setCorrectedReply,
-  setFeedbackArchived,
-} from "@/lib/feedback-store";
-import type { ReplyFeedback } from "@/lib/feedback-data";
 import { editRatePct } from "@/lib/diff";
 import { cn, formatClock } from "@/lib/utils";
-import { Check, X, Pencil, TrendingUp, UserCheck, Archive, ArchiveRestore } from "lucide-react";
+import { Check, X, Pencil, TrendingUp, UserCheck, Archive, ArchiveRestore, Loader2 } from "lucide-react";
 
-// この閾値を超えるタグは「テンプレ改善提案」を出す
+// shadow_feedback の1行（API GET の戻り）
+interface FeedbackRow {
+  id: number;
+  display_name: string | null;
+  tags: string[];
+  inbound_text: string | null;
+  generated: string;
+  sent: string;
+  corrected_reply: string | null;
+  operator: string | null;
+  status: "pending" | "approved" | "rejected";
+  archived: boolean;
+  created_at: string;
+}
+
 const IMPROVE_THRESHOLD = 25;
 
 function editRateBadgeVariant(rate: number): "success" | "warning" | "danger" {
@@ -31,13 +38,38 @@ function editRateBadgeVariant(rate: number): "success" | "warning" | "danger" {
 }
 
 export default function LearningPage() {
-  const feedback = useFeedback();
+  const [feedback, setFeedback] = React.useState<FeedbackRow[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [showArchived, setShowArchived] = React.useState(false);
-  // アーカイブは既定で学習ログから隠す（承認/却下では消えず、アーカイブで消える）
+
+  React.useEffect(() => {
+    fetch("/api/feedback")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) setError(d.error);
+        else setFeedback(d.feedback ?? []);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "通信エラー"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // 1件の更新を API に投げ、成功したら state を差し替える
+  const patch = React.useCallback(async (id: number, body: Record<string, unknown>) => {
+    const res = await fetch("/api/feedback", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...body }),
+    });
+    const data = await res.json();
+    if (res.ok && data.feedback) {
+      setFeedback((prev) => prev.map((f) => (f.id === id ? data.feedback : f)));
+    }
+  }, []);
+
   const visible = showArchived ? feedback : feedback.filter((f) => !f.archived);
   const archivedCount = feedback.filter((f) => f.archived).length;
 
-  // タグ別の平均編集率を集計（表示中のものを対象）
   const tagStats = React.useMemo(() => {
     const map = new Map<string, { total: number; count: number }>();
     for (const f of visible) {
@@ -67,7 +99,15 @@ export default function LearningPage() {
       <AppHeader />
       <ScrollArea className="flex-1 bg-muted/20">
         <div className="mx-auto max-w-4xl space-y-6 p-6">
-          {/* サマリー */}
+          {loading && (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> 学習ログを読み込み中…
+            </p>
+          )}
+          {error && (
+            <p className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>
+          )}
+
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label="記録件数" value={`${total}`} />
             <Stat label="平均編集率" value={`${avgEdit}%`} hint="低いほどAIが正確" />
@@ -75,7 +115,6 @@ export default function LearningPage() {
             <Stat label="学習済み(承認)" value={`${approved}`} />
           </div>
 
-          {/* タグ別 改善提案 */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -89,7 +128,6 @@ export default function LearningPage() {
                 return (
                   <div key={t.tag} className="flex items-center gap-3 text-sm">
                     <span className="w-28 shrink-0 truncate font-medium">{t.tag}</span>
-                    {/* バー */}
                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                       <div
                         className={
@@ -120,13 +158,12 @@ export default function LearningPage() {
                   </div>
                 );
               })}
-              {tagStats.length === 0 && (
+              {tagStats.length === 0 && !loading && (
                 <p className="text-sm text-muted-foreground">まだデータがありません。</p>
               )}
             </CardContent>
           </Card>
 
-          {/* フィードバック一覧（差分＋承認/却下＋アーカイブ） */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -148,11 +185,11 @@ export default function LearningPage() {
             </div>
 
             {visible.map((f) => (
-              <FeedbackEntry key={f.id} f={f} />
+              <FeedbackEntry key={f.id} f={f} onPatch={patch} />
             ))}
-            {visible.length === 0 && (
+            {visible.length === 0 && !loading && (
               <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                表示するログがありません。
+                表示するログがありません。返信ドラフトで「送信（モック）」すると、ここに記録されます。
               </p>
             )}
           </div>
@@ -162,25 +199,44 @@ export default function LearningPage() {
   );
 }
 
-/** 1件のフィードバック（差分表示・承認/却下・却下時は正解入力） */
-function FeedbackEntry({ f }: { f: ReplyFeedback }) {
+function FeedbackEntry({
+  f,
+  onPatch,
+}: {
+  f: FeedbackRow;
+  onPatch: (id: number, body: Record<string, unknown>) => Promise<void>;
+}) {
   const rate = editRatePct(f.generated, f.sent);
-  const [correction, setCorrection] = React.useState(f.correctedReply ?? f.sent);
+  const [correction, setCorrection] = React.useState(f.corrected_reply ?? f.sent);
   const [savedCorrection, setSavedCorrection] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+
+  const act = async (body: Record<string, unknown>) => {
+    setBusy(true);
+    try {
+      await onPatch(f.id, body);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
         <div className="flex items-center gap-2">
-          <Avatar className="h-7 w-7 bg-slate-400 text-xs">{f.displayName.slice(0, 1)}</Avatar>
-          <span className="text-sm font-medium">{f.displayName}</span>
-          <Badge variant="secondary" className="ml-1 gap-1">
-            <UserCheck className="h-3 w-3" />
-            {f.operator}
-          </Badge>
+          <Avatar className="h-7 w-7 bg-slate-400 text-xs">
+            {(f.display_name ?? "?").slice(0, 1)}
+          </Avatar>
+          <span className="text-sm font-medium">{f.display_name ?? "（名前なし）"}</span>
+          {f.operator && (
+            <Badge variant="secondary" className="ml-1 gap-1">
+              <UserCheck className="h-3 w-3" />
+              {f.operator}
+            </Badge>
+          )}
           <Badge variant={editRateBadgeVariant(rate)}>編集率 {rate}%</Badge>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground">{formatClock(f.createdAt)}</span>
+            <span className="text-[11px] text-muted-foreground">{formatClock(f.created_at)}</span>
             {f.status === "approved" && (
               <Badge variant="success" className="gap-1">
                 <Check className="h-3 w-3" />
@@ -204,19 +260,18 @@ function FeedbackEntry({ f }: { f: ReplyFeedback }) {
         </div>
 
         <p className="rounded bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
-          顧客：{f.inboundText}
+          顧客：{f.inbound_text}
         </p>
 
         <div className="rounded-md border p-3">
           <DiffView generated={f.generated} sent={f.sent} />
         </div>
 
-        {/* 却下時：正しい返信文を入力（正解として裏で蓄積される） */}
         {f.status === "rejected" && (
           <div className="space-y-2 rounded-md border border-rose-200 bg-rose-50/50 p-3">
             <label className="flex items-center gap-1 text-xs font-medium text-rose-700">
               <Pencil className="h-3.5 w-3.5" />
-              正しい返信文を入力（正解として蓄積されます）
+              正しい返信文を入力（正解として蓄積され、次の生成に使われます）
             </label>
             <Textarea
               value={correction}
@@ -234,9 +289,9 @@ function FeedbackEntry({ f }: { f: ReplyFeedback }) {
               <Button
                 variant="line"
                 size="sm"
-                disabled={!correction.trim()}
-                onClick={() => {
-                  setCorrectedReply(f.id, correction);
+                disabled={!correction.trim() || busy}
+                onClick={async () => {
+                  await act({ correctedReply: correction });
                   setSavedCorrection(true);
                 }}
               >
@@ -247,15 +302,24 @@ function FeedbackEntry({ f }: { f: ReplyFeedback }) {
           </div>
         )}
 
-        {/* 承認/却下は状態を変えるだけ。学習ログから消すにはアーカイブを押す。 */}
         <div className="flex flex-wrap items-center justify-end gap-2">
           {f.status === "pending" ? (
             <>
-              <Button variant="outline" size="sm" onClick={() => setFeedbackStatus(f.id, "rejected")}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => act({ status: "rejected" })}
+              >
                 <X className="h-4 w-4" />
                 却下
               </Button>
-              <Button variant="line" size="sm" onClick={() => setFeedbackStatus(f.id, "approved")}>
+              <Button
+                variant="line"
+                size="sm"
+                disabled={busy}
+                onClick={() => act({ status: "approved" })}
+              >
                 <Check className="h-4 w-4" />
                 承認（学習に追加）
               </Button>
@@ -265,18 +329,19 @@ function FeedbackEntry({ f }: { f: ReplyFeedback }) {
               variant="ghost"
               size="sm"
               className="text-muted-foreground"
-              onClick={() => setFeedbackStatus(f.id, "pending")}
+              disabled={busy}
+              onClick={() => act({ status: "pending" })}
             >
               承認状態を戻す
             </Button>
           )}
           {f.archived ? (
-            <Button variant="outline" size="sm" onClick={() => setFeedbackArchived(f.id, false)}>
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => act({ archived: false })}>
               <ArchiveRestore className="h-4 w-4" />
               アーカイブ解除
             </Button>
           ) : (
-            <Button variant="outline" size="sm" onClick={() => setFeedbackArchived(f.id, true)}>
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => act({ archived: true })}>
               <Archive className="h-4 w-4" />
               アーカイブ
             </Button>
