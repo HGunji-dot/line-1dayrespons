@@ -208,3 +208,88 @@ CREATE TABLE IF NOT EXISTS reply_feedback (
 
 CREATE INDEX IF NOT EXISTS idx_reply_feedback_status
     ON reply_feedback (status, created_at DESC);
+
+-- ═════════════════════════════════════════════
+-- 11. AI生成のための取得（リトリーバル）  ※フェーズC v1
+--    方針（メモリ line-1dayrespons-backend-plan）:
+--      - タグは「人が確定した入力」前提（タグ推定はこの段では行わない）
+--      - 複数タグは OR（和集合）で対象を絞る
+--      - 1タグに約100件の Q&A があるため、タグ内は
+--        「顧客メッセージ ↔ title の語彙類似」で上位 N 件に絞る
+--      - 類似は pg_trgm（similarity）で代用。pgvector は後追い。
+--    呼び出しは web/ の Route Handler から supabase.rpc() で行う。
+-- ═════════════════════════════════════════════
+
+-- title / inbound_text の trigram 類似検索を有効化
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- title への GIN(trgm) インデックス（類似検索の高速化）
+CREATE INDEX IF NOT EXISTS idx_templates_title_trgm
+    ON templates USING gin (title gin_trgm_ops);
+
+-- ─────────────────────────────────────────────
+-- match_templates: タグOR で templates を絞り、顧客メッセージ(inbound)に
+--   title が近い順で上位 limit_n 件を返す。
+--   inbound が空でも動くよう、同点・無類似時は updated_at 新しい順で補う。
+--   N は引数で可変（最適解の模索のため。アプリ再デプロイ不要で試せる）。
+-- ─────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION match_templates(
+    inbound    TEXT,
+    tag_labels TEXT[],
+    limit_n    INT DEFAULT 6
+)
+RETURNS TABLE (
+    id         TEXT,
+    tag_label  TEXT,
+    title      TEXT,
+    body       TEXT,
+    similarity REAL
+)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT
+        t.id,
+        t.tag_label,
+        t.title,
+        t.body,
+        similarity(t.title, COALESCE(inbound, '')) AS similarity
+    FROM templates t
+    WHERE t.tag_label = ANY(tag_labels)
+    ORDER BY similarity DESC, t.updated_at DESC
+    LIMIT GREATEST(limit_n, 0)
+$$;
+
+-- ─────────────────────────────────────────────
+-- match_examples: approved な reply_feedback（人が承認/添削した実例）から、
+--   タグが重なり かつ inbound_text が近い順で上位 limit_n 件を返す。
+--   承認済み実例は「最も価値の高い学習信号」＝生成の正解例として優先する。
+--   収集初期は0件になり得る（その場合は templates のみで生成）。
+-- ─────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION match_examples(
+    inbound    TEXT,
+    tag_labels TEXT[],
+    limit_n    INT DEFAULT 4
+)
+RETURNS TABLE (
+    id           BIGINT,
+    inbound_text TEXT,
+    sent         TEXT,
+    tags         TEXT[],
+    similarity   REAL
+)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT
+        f.id,
+        f.inbound_text,
+        f.sent,
+        f.tags,
+        similarity(COALESCE(f.inbound_text, ''), COALESCE(inbound, '')) AS similarity
+    FROM reply_feedback f
+    WHERE f.status = 'approved'
+      AND f.tags && tag_labels          -- 配列の重なり（OR）
+    ORDER BY similarity DESC, f.approved_at DESC NULLS LAST
+    LIMIT GREATEST(limit_n, 0)
+$$;
