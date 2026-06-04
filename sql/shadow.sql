@@ -43,3 +43,20 @@ ON CONFLICT (id) DO NOTHING;
 
 -- 取込結果の確認:
 -- SELECT count(*) AS rows, count(DISTINCT user_id) AS users FROM shadow_messages;
+
+-- ─────────────────────────────────────────────
+-- shadow_analysis: 会話ごとのAI分析（フェーズ③タグ推定）
+--   estimated_tags = AIが固定タグマスタから選んだ推定（確信度つき）
+--   tags           = 人が確認・修正した「確定タグ」（生成・学習に使う真値）
+--   confirmed      = 人がレビュー済みか（タグ正解率の指標にも使う）
+--   ※ 並行世界の実験データ。本番テーブルには影響しない。
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS shadow_analysis (
+    user_id        TEXT        PRIMARY KEY,
+    estimated_tags JSONB       NOT NULL DEFAULT '[]',  -- [{label, confidence}]
+    tags           JSONB       NOT NULL DEFAULT '[]',  -- 人が確定 [{label, confidence}]
+    summary        TEXT,                               -- 任意（将来：要約）
+    confirmed      BOOLEAN     NOT NULL DEFAULT FALSE,
+    model          TEXT,                               -- 推定に使ったモデル
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

@@ -4,7 +4,7 @@
 // フェーズ③（タグ推定）・④（生成）でシャドウ側の生成物から埋める。
 // ─────────────────────────────────────────────
 
-import type { Conversation, Message, Urgency } from "@/lib/types";
+import type { AnalysisTag, Conversation, Message, Urgency } from "@/lib/types";
 
 export interface ShadowMessageRow {
   id: number;
@@ -16,6 +16,14 @@ export interface ShadowMessageRow {
   received_at: string;
   replied: boolean;
   replied_at: string | null;
+}
+
+export interface ShadowAnalysisRow {
+  user_id: string;
+  estimated_tags: AnalysisTag[] | null;
+  tags: AnalysisTag[] | null;
+  summary: string | null;
+  confirmed: boolean;
 }
 
 const AVATAR_COLORS = [
@@ -47,7 +55,11 @@ export function elapsedLabel(lastMs: number, nowMs: number, unreplied: number): 
 }
 
 /** shadow_messages 行を user_id でまとめて Conversation[] にする。最新会話が先頭。 */
-export function buildConversations(rows: ShadowMessageRow[], nowMs: number): Conversation[] {
+export function buildConversations(
+  rows: ShadowMessageRow[],
+  nowMs: number,
+  analysisByUser?: Map<string, ShadowAnalysisRow>
+): Conversation[] {
   const byUser = new Map<string, ShadowMessageRow[]>();
   for (const r of rows) {
     const arr = byUser.get(r.user_id);
@@ -79,6 +91,11 @@ export function buildConversations(rows: ShadowMessageRow[], nowMs: number): Con
     const lastMs = new Date(last.received_at).getTime();
     const initial = displayName.trim().charAt(0) || "?";
 
+    // shadow_analysis があれば確定タグ（無ければ推定）を反映
+    const analysis = analysisByUser?.get(userId);
+    const tags: AnalysisTag[] =
+      (analysis?.tags && analysis.tags.length ? analysis.tags : analysis?.estimated_tags) ?? [];
+
     convs.push({
       userId,
       displayName,
@@ -90,10 +107,11 @@ export function buildConversations(rows: ShadowMessageRow[], nowMs: number): Con
       elapsedLabel: elapsedLabel(lastMs, nowMs, unrepliedCount),
       handlingBy: null,
       archived: false,
-      // --- AI欄はフェーズ③/④で埋める。今は空 ---
-      summary: "",
+      // --- AI欄：shadow_analysis から（要約はフェーズ後続） ---
+      summary: analysis?.summary ?? "",
       urgency: "low" as Urgency,
-      tags: [],
+      tags,
+      tagsConfirmed: analysis?.confirmed ?? false,
       suggestedReply: "",
     });
   }

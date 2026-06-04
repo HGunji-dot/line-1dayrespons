@@ -37,6 +37,7 @@ export interface Conversation {
   // --- 以下は本来 AI が生成する。今はダミー ---
   summary: string; // 顧客メッセージの要約
   urgency: Urgency; // 緊急度
-  tags: AnalysisTag[]; // ドメイン特化タグ
+  tags: AnalysisTag[]; // ドメイン特化タグ（shadow_analysis の確定 or 推定）
+  tagsConfirmed?: boolean; // 人がタグを確定済みか（フェーズ③）
   suggestedReply: string; // 返信ドラフトの初期値
 }

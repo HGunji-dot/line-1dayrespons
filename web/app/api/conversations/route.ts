@@ -8,7 +8,11 @@
 
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { buildConversations, type ShadowMessageRow } from "@/lib/conversation";
+import {
+  buildConversations,
+  type ShadowMessageRow,
+  type ShadowAnalysisRow,
+} from "@/lib/conversation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +41,15 @@ export async function GET() {
     if (data.length < PAGE) break;
   }
 
-  const conversations = buildConversations(rows, Date.now());
+  // shadow_analysis（確定/推定タグ）を取得してマップ化
+  const analysisByUser = new Map<string, ShadowAnalysisRow>();
+  const an = await supabase
+    .from("shadow_analysis")
+    .select("user_id,estimated_tags,tags,summary,confirmed");
+  if (!an.error && an.data) {
+    for (const row of an.data as ShadowAnalysisRow[]) analysisByUser.set(row.user_id, row);
+  }
+
+  const conversations = buildConversations(rows, Date.now(), analysisByUser);
   return NextResponse.json({ conversations, total: conversations.length });
 }

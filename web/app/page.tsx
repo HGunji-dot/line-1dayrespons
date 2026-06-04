@@ -97,6 +97,13 @@ export default function Page() {
     );
   };
 
+  // タグ推定/修正/確定の反映：AI分析パネル → 会話state → 返信ドラフト生成へ流す
+  const handleTagsChange = (userId: string, tags: Conversation["tags"], confirmed: boolean) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.userId === userId ? { ...c, tags, tagsConfirmed: confirmed } : c))
+    );
+  };
+
   // 対応開始：未対応の会話を自分（operator）のものとして確保する
   const handleClaim = (userId: string, operator: string) => {
     setConversations((prev) =>
@@ -152,7 +159,7 @@ export default function Page() {
 
           {/* ③ AI分析 */}
           <ResizablePanel defaultSize={23} minSize={16} className="bg-card">
-            <AnalysisPanel conversation={selected} />
+            <AnalysisPanel conversation={selected} onTagsChange={handleTagsChange} />
           </ResizablePanel>
           <ResizableHandle withHandle />
 
