@@ -45,7 +45,7 @@ function avatarColorFor(userId: string): string {
 }
 
 // スタッフ本人のLINE名（社内会話の判定用）。STAFF とは別に実データの表示名で持つ。
-const STAFF_NAMES = ["郡司", "酢崎", "水口", "小沼"];
+const STAFF_NAMES = ["郡司", "酢崎", "水口", "小沼", "萩原"];
 
 // 社内/ノイズと判定する本文パターン（ボットの通知など）
 const NOISE_TEXT = /未返信アラート/;
