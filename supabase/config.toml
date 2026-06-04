@@ -6,3 +6,18 @@ verify_jwt = false
 
 [functions.send-reply]
 verify_jwt = false
+
+[functions.get-unreplied]
+verify_jwt = false
+
+[functions.upload-image]
+verify_jwt = false
+
+[functions.save-note]
+verify_jwt = false
+
+[functions.mark-replied]
+verify_jwt = false
+
+[functions.check-unreplied-notify]
+verify_jwt = false

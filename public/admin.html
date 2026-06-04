@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LINE 未返信 管理画面</title>
+    <style>
+      :root {
+        --bg: #fafafa;
+        --surface: #ffffff;
+        --text: #1a1a1a;
+        --muted: #5c5c5c;
+        --border: #e8e8e8;
+        --accent: #2d2d2d;
+        --danger: #c0392b;
+        --success: #27ae60;
+        --warn: #e67e22;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+      }
+
+      *, *::before, *::after { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Helvetica Neue", Helvetica, "Noto Sans JP", "Hiragino Sans",
+          "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .page { max-width: 56rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+
+      header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 1.5rem;
+      }
+      header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+      .header-meta { font-size: 0.8125rem; color: var(--muted); }
+
+      /* ── ログイン ── */
+      #login-screen {
+        max-width: 28rem;
+        margin: 5rem auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 2rem;
+        box-shadow: var(--shadow);
+      }
+      #login-screen h2 { margin: 0 0 0.25rem; font-size: 1.1rem; }
+      #login-screen p  { font-size: 0.875rem; color: var(--muted); margin: 0 0 1.5rem; }
+
+      /* ── フォーム ── */
+      .field { margin-bottom: 1rem; }
+      .field label { display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.35rem; }
+
+      input[type="text"], input[type="password"], input[type="url"], textarea {
+        width: 100%;
+        padding: 0.55rem 0.75rem;
+        font-size: 0.9rem;
+        font-family: inherit;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--text);
+        outline: none;
+        transition: border-color 0.15s;
+      }
+      input:focus, textarea:focus { border-color: var(--accent); }
+      textarea { resize: vertical; min-height: 72px; }
+
+      /* ── ボタン ── */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.45rem 1rem;
+        font-size: 0.875rem;
+        font-family: inherit;
+        font-weight: 600;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: opacity 0.15s;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .btn:hover   { opacity: 0.82; }
+      .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+      .btn-primary { background: var(--accent); color: #fff; }
+      .btn-outline { background: transparent; color: var(--accent); border-color: var(--border); }
+      .btn-done    { background: var(--success); color: #fff; }
+      .btn-sm      { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+
+      /* ── ツールバー ── */
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+      }
+      .badge-count {
+        font-size: 0.8125rem;
+        background: #f0f0f0;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.25rem 0.75rem;
+        color: var(--muted);
+      }
+      .badge-count strong { color: var(--text); }
+
+      /* ── カード一覧 ── */
+      .customer-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+      .customer-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      /* カードヘッダー */
+      .card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.85rem 1.1rem;
+        flex-wrap: wrap;
+      }
+
+      .card-index {
+        min-width: 1.5rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+        font-weight: 600;
+        text-align: right;
+      }
+
+      .card-info { flex: 1; min-width: 0; }
+      .card-name { font-weight: 700; font-size: 0.9375rem; }
+      .card-meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.1rem; }
+
+      .card-actions {
+        display: flex;
+        gap: 0.4rem;
+        flex-shrink: 0;
+      }
+
+      /* メモ欄 */
+      .card-memo {
+        border-top: 1px solid var(--border);
+        padding: 0.65rem 1.1rem;
+        background: #fafbfc;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.6rem;
+      }
+
+      .memo-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--muted);
+        white-space: nowrap;
+        padding-top: 0.45rem;
+      }
+
+      .memo-input {
+        flex: 1;
+        min-height: 2.4rem;
+        max-height: 6rem;
+        font-size: 0.8125rem;
+        padding: 0.4rem 0.6rem;
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        background: #fff;
+        resize: vertical;
+        line-height: 1.5;
+      }
+      .memo-input:focus { border-color: var(--accent); }
+
+      .memo-save-btn {
+        font-size: 0.75rem;
+        font-family: inherit;
+        font-weight: 600;
+        padding: 0.35rem 0.65rem;
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: color 0.15s, border-color 0.15s;
+        align-self: flex-start;
+        margin-top: 0.15rem;
+      }
+      .memo-save-btn:hover { color: var(--accent); border-color: var(--accent); }
+      .memo-save-btn.saved { color: var(--success); border-color: var(--success); }
+
+      /* 返信パネル */
+      .reply-panel {
+        border-top: 1px solid var(--border);
+        padding: 0.85rem 1.1rem;
+        background: #f4f7fb;
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+      }
+
+      .reply-preview {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.55rem 0.8rem;
+      }
+      .reply-preview strong { color: var(--text); }
+
+      /* 画像添付（複数枚・D&D対応） */
+      input[type="file"] { display: none; }
+
+      .drop-zone {
+        border: 2px dashed var(--border);
+        border-radius: 8px;
+        padding: 0.85rem 1rem;
+        text-align: center;
+        background: #fff;
+        transition: border-color 0.15s, background 0.15s;
+        cursor: pointer;
+      }
+      .drop-zone.drag-over { border-color: var(--accent); background: #f0f4ff; }
+
+      .drop-zone-hint {
+        font-size: 0.8125rem;
+        color: var(--muted);
+        pointer-events: none;
+      }
+
+      .file-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.3rem 0.75rem;
+        font-size: 0.8rem;
+        font-family: inherit;
+        font-weight: 600;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--accent);
+        cursor: pointer;
+        margin-top: 0.4rem;
+        transition: opacity 0.15s;
+      }
+      .file-label:hover { opacity: 0.75; }
+
+      .img-limit-info {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-top: 0.35rem;
+      }
+      .img-limit-info.over { color: var(--danger); font-weight: 600; }
+
+      .img-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+      }
+
+      .img-thumb {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: #eee;
+        flex-shrink: 0;
+      }
+      .img-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .img-thumb-del {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: rgba(0,0,0,0.55);
+        color: #fff;
+        font-size: 11px;
+        line-height: 18px;
+        text-align: center;
+        cursor: pointer;
+        border: none;
+        padding: 0;
+        font-family: inherit;
+      }
+      .img-thumb-del:hover { background: var(--danger); }
+
+      .reply-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+      }
+
+      /* ── 状態 ── */
+      .empty-state { text-align: center; padding: 3rem; color: var(--muted); font-size: 0.9rem; }
+      .loading     { text-align: center; padding: 2.5rem; color: var(--muted); font-size: 0.875rem; }
+
+      .error-banner {
+        background: #fdf0ee;
+        border: 1px solid #f5c6c1;
+        border-radius: 6px;
+        padding: 0.7rem 1rem;
+        font-size: 0.875rem;
+        color: var(--danger);
+        margin-bottom: 1rem;
+      }
+
+      .success-toast {
+        position: fixed;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        background: var(--success);
+        color: #fff;
+        padding: 0.65rem 1.1rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 0.2s, transform 0.2s;
+        pointer-events: none;
+      }
+      .success-toast.show { opacity: 1; transform: translateY(0); }
+
+      /* ── 送信後確認パネル ── */
+      .sent-confirm {
+        border-top: 1px solid var(--border);
+        padding: 0.85rem 1.1rem;
+        background: #edf7ed;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+      }
+      .sent-confirm-msg {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--success);
+      }
+      .sent-confirm-actions { display: flex; gap: 0.5rem; }
+
+      .logout-link {
+        font-size: 0.8rem;
+        color: var(--muted);
+        cursor: pointer;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .logout-link:hover { color: var(--danger); }
+    </style>
+  </head>
+  <body>
+
+    <!-- ログイン画面 -->
+    <div id="login-screen">
+      <h2>LINE 未返信 管理画面</h2>
+      <p>Supabase Functions の URL と管理者シークレットを入力してください。<br>入力内容はこのブラウザのみに保存され、タブを閉じると消えます。</p>
+      <div id="login-error" class="error-banner" style="display:none"></div>
+      <div class="field">
+        <label for="input-url">Supabase Functions ベース URL</label>
+        <input type="url" id="input-url" placeholder="https://xxxx.supabase.co/functions/v1" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="input-secret">ADMIN_SECRET</label>
+        <input type="password" id="input-secret" placeholder="管理者シークレット" autocomplete="off" />
+      </div>
+      <button class="btn btn-primary" id="btn-login" style="width:100%">ログイン</button>
+    </div>
+
+    <!-- メイン画面 -->
+    <div class="page" id="main-screen" style="display:none">
+      <header>
+        <h1>LINE 未返信 管理画面</h1>
+        <div class="header-meta">
+          <span id="header-time"></span>
+          &nbsp;·&nbsp;
+          <span class="logout-link" id="btn-logout">ログアウト</span>
+        </div>
+      </header>
+
+      <div id="error-banner" class="error-banner" style="display:none"></div>
+
+      <div class="toolbar">
+        <span class="badge-count" id="badge-count"><strong>—</strong> 件</span>
+        <button class="btn btn-outline btn-sm" id="btn-refresh">更新</button>
+      </div>
+
+      <div id="list-area"><div class="loading">読み込み中...</div></div>
+    </div>
+
+    <div class="success-toast" id="toast"></div>
+
+    <script>
+      const SS_URL_KEY    = 'la_func_url';
+      const SS_SECRET_KEY = 'la_secret';
+
+      // ── ユーティリティ ────────────────────────────────────
+      function fmtJST(iso) {
+        return new Date(iso).toLocaleString('ja-JP', {
+          timeZone: 'Asia/Tokyo',
+          month: 'numeric', day: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+        });
+      }
+
+      function esc(s) {
+        return String(s ?? '')
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+          .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+
+      function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 2800);
+      }
+
+      function setError(id, msg) {
+        const el = document.getElementById(id);
+        el.textContent = msg;
+        el.style.display = msg ? '' : 'none';
+      }
+
+      // ── セッション ────────────────────────────────────────
+      const getSession = () => ({
+        url:    sessionStorage.getItem(SS_URL_KEY)    || '',
+        secret: sessionStorage.getItem(SS_SECRET_KEY) || '',
+      });
+
+      function saveSession(url, secret) {
+        sessionStorage.setItem(SS_URL_KEY,    url.replace(/\/$/, ''));
+        sessionStorage.setItem(SS_SECRET_KEY, secret);
+      }
+
+      function clearSession() {
+        sessionStorage.removeItem(SS_URL_KEY);
+        sessionStorage.removeItem(SS_SECRET_KEY);
+      }
+
+      // ── API ───────────────────────────────────────────────
+      async function apiPost(endpoint, body) {
+        const { url, secret } = getSession();
+        const res = await fetch(`${url}/${endpoint}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${secret}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body || {}),
+        });
+        if (!res.ok) throw new Error(`${endpoint}: ${res.status} ${await res.text().catch(()=>'')}`);
+        return res.json();
+      }
+
+      async function apiUpload(file) {
+        const { url, secret } = getSession();
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch(`${url}/upload-image`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${secret}` },
+          body: fd,
+        });
+        if (!res.ok) throw new Error(`upload-image: ${res.status} ${await res.text().catch(()=>'')}`);
+        return (await res.json()).url;
+      }
+
+      // ── 一覧データ ────────────────────────────────────────
+      let users = [];
+      // 各ユーザーの状態: { openReply, file, noteChanged }
+      const state = {};
+
+      async function loadList() {
+        document.getElementById('list-area').innerHTML = '<div class="loading">読み込み中...</div>';
+        setError('error-banner', '');
+        try {
+          const data = await apiPost('get-unreplied', {});
+          users = data.users || [];
+          renderAll();
+          const now = new Date().toLocaleString('ja-JP', {
+            timeZone:'Asia/Tokyo', year:'numeric', month:'numeric',
+            day:'numeric', hour:'2-digit', minute:'2-digit',
+          });
+          document.getElementById('header-time').textContent = now + ' JST';
+        } catch(e) {
+          setError('error-banner', '一覧の取得に失敗しました: ' + e.message);
+          document.getElementById('list-area').innerHTML = '';
+        }
+      }
+
+      function renderAll() {
+        document.getElementById('badge-count').innerHTML = `<strong>${users.length}</strong> 件`;
+
+        if (users.length === 0) {
+          document.getElementById('list-area').innerHTML =
+            '<div class="empty-state">未対応のお客様はいません</div>';
+          return;
+        }
+
+        const cards = users.map((u, i) => buildCard(u, i)).join('');
+        document.getElementById('list-area').innerHTML =
+          `<div class="customer-list">${cards}</div>`;
+      }
+
+      function buildCard(u, i) {
+        const s = state[i] || (state[i] = { openReply: false, file: null });
+        const metaText = `受信 ${fmtJST(u.oldest_received_at)}　${u.unreplied_count} 件未返信`;
+        const noteVal  = esc(u.note || '');
+
+        const replyPanelHtml = s.openReply ? `
+          <div class="reply-panel" id="reply-panel-${i}">
+            <div class="reply-preview">
+              <strong>${esc(u.display_name || u.user_id)}</strong> の最古未返信（${fmtJST(u.oldest_received_at)}）:<br>
+              ${u.oldest_text ? esc(u.oldest_text) : '<em>（テキスト取得なし）</em>'}
+            </div>
+            <textarea id="reply-text-${i}" placeholder="返信内容（画像のみの場合は空白でも可）" rows="3"
+              oninput="renderImgGrid(${i})"></textarea>
+            <div class="drop-zone" id="dropzone-${i}"
+              ondragover="onDragOver(event,${i})"
+              ondragleave="onDragLeave(event,${i})"
+              ondrop="onDrop(event,${i})">
+              <div class="drop-zone-hint">
+                ここに画像をドラッグ＆ドロップ（JPEG / PNG / GIF）
+              </div>
+              <label class="file-label" for="file-${i}">＋ ファイルを選ぶ</label>
+              <input type="file" id="file-${i}" accept="image/jpeg,image/png,image/gif"
+                multiple onchange="onFileInput(${i},this)">
+              <div class="img-limit-info" id="img-limit-${i}">0 / 4 枚（テキストあり時の上限）</div>
+              <div class="img-grid" id="img-grid-${i}"></div>
+            </div>
+            <div class="reply-actions">
+              <button class="btn btn-outline btn-sm" onclick="closeReply(${i})">キャンセル</button>
+              <button class="btn btn-primary btn-sm" id="send-btn-${i}"
+                onclick="sendReply(${i},'${esc(u.user_id)}')">送信</button>
+            </div>
+          </div>` : '';
+
+        return `
+          <div class="customer-card" id="card-${i}">
+            <div class="card-header">
+              <div class="card-index">${i + 1}</div>
+              <div class="card-info">
+                <div class="card-name">${esc(u.display_name || u.user_id)}</div>
+                <div class="card-meta">${metaText}</div>
+              </div>
+              <div class="card-actions">
+                <button class="btn btn-outline btn-sm" onclick="toggleReply(${i})">返信する</button>
+                <button class="btn btn-done btn-sm" id="done-btn-${i}"
+                  onclick="markDone(${i},'${esc(u.user_id)}')">対応済み ✓</button>
+              </div>
+            </div>
+            <div class="card-memo">
+              <span class="memo-label">メモ</span>
+              <textarea class="memo-input" id="memo-${i}" placeholder="社内メモ（お客様には見えません）"
+                oninput="onMemoInput(${i})"
+                onblur="autoSaveNote(${i},'${esc(u.user_id)}')"
+              >${noteVal}</textarea>
+              <button class="memo-save-btn" id="memo-btn-${i}"
+                onclick="saveNote(${i},'${esc(u.user_id)}')">保存</button>
+            </div>
+            ${replyPanelHtml}
+          </div>`;
+      }
+
+      // ── メモ ──────────────────────────────────────────────
+      const memoTimers = {};
+
+      function onMemoInput(i) {
+        const btn = document.getElementById(`memo-btn-${i}`);
+        if (btn) { btn.textContent = '保存'; btn.classList.remove('saved'); }
+        clearTimeout(memoTimers[i]);
+        const userId = users[i]?.user_id;
+        if (userId) {
+          memoTimers[i] = setTimeout(() => autoSaveNote(i, userId), 2000);
+        }
+      }
+
+      async function autoSaveNote(i, userId) {
+        clearTimeout(memoTimers[i]);
+        const ta = document.getElementById(`memo-${i}`);
+        if (!ta) return;
+        await saveNote(i, userId, true);
+      }
+
+      async function saveNote(i, userId, silent = false) {
+        const ta  = document.getElementById(`memo-${i}`);
+        const btn = document.getElementById(`memo-btn-${i}`);
+        if (!ta) return;
+        const note = ta.value;
+        try {
+          await apiPost('save-note', { userId, note });
+          if (users[i]) users[i].note = note;
+          if (btn) { btn.textContent = '保存済'; btn.classList.add('saved'); }
+          if (!silent) showToast('メモを保存しました');
+        } catch(e) {
+          if (!silent) setError('error-banner', 'メモの保存に失敗しました: ' + e.message);
+        }
+      }
+
+      // ── 対応済み ──────────────────────────────────────────
+      async function markDone(i, userId) {
+        const btn = document.getElementById(`done-btn-${i}`);
+        if (btn) { btn.disabled = true; btn.textContent = '処理中…'; }
+        setError('error-banner', '');
+        try {
+          await apiPost('mark-replied', { userId });
+          users.splice(i, 1);
+          Object.keys(state).forEach(k => { if (Number(k) >= i) delete state[k]; });
+          renderAll();
+          showToast('対応済みにしました');
+        } catch(e) {
+          setError('error-banner', '対応済みの更新に失敗しました: ' + e.message);
+          if (btn) { btn.disabled = false; btn.textContent = '対応済み ✓'; }
+        }
+      }
+
+      // ── 返信パネル ────────────────────────────────────────
+      function toggleReply(i) {
+        const s = state[i] || (state[i] = {});
+        s.openReply = !s.openReply;
+        refreshCard(i);
+        if (s.openReply) {
+          setTimeout(() => document.getElementById(`reply-text-${i}`)?.focus(), 50);
+        }
+      }
+
+      function closeReply(i) {
+        const s = state[i] || {};
+        s.openReply = false;
+        s.files = [];
+        refreshCard(i);
+      }
+
+      function refreshCard(i) {
+        const card = document.getElementById(`card-${i}`);
+        if (!card || !users[i]) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = buildCard(users[i], i);
+        card.replaceWith(tmp.firstElementChild);
+      }
+
+      // ── 画像（複数枚・D&D） ───────────────────────────────
+      const MAX_IMAGES_WITH_TEXT    = 4;  // テキストあり
+      const MAX_IMAGES_WITHOUT_TEXT = 5;  // テキストなし
+      const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+
+      function getFiles(i) {
+        return (state[i] || (state[i] = {})).files || (state[i].files = []);
+      }
+
+      function addFiles(i, newFiles) {
+        const files = getFiles(i);
+        for (const f of newFiles) {
+          if (!ALLOWED_TYPES.includes(f.type)) continue;
+          files.push(f);
+        }
+        renderImgGrid(i);
+      }
+
+      function removeFile(i, j) {
+        const files = getFiles(i);
+        files.splice(j, 1);
+        renderImgGrid(i);
+      }
+
+      function renderImgGrid(i) {
+        const files   = getFiles(i);
+        const grid    = document.getElementById(`img-grid-${i}`);
+        const limitEl = document.getElementById(`img-limit-${i}`);
+        const ta      = document.getElementById(`reply-text-${i}`);
+        if (!grid) return;
+
+        const hasText = ta ? ta.value.trim().length > 0 : false;
+        const maxImg  = hasText ? MAX_IMAGES_WITH_TEXT : MAX_IMAGES_WITHOUT_TEXT;
+        const over    = files.length > maxImg;
+
+        if (limitEl) {
+          limitEl.textContent = `${files.length} / ${maxImg} 枚${hasText ? '（テキストあり時の上限）' : ''}`;
+          limitEl.className   = 'img-limit-info' + (over ? ' over' : '');
+        }
+
+        grid.innerHTML = files.map((f, j) => {
+          const objUrl = URL.createObjectURL(f);
+          return `<div class="img-thumb" id="thumb-${i}-${j}">
+            <img src="${objUrl}" alt="${esc(f.name)}" onload="URL.revokeObjectURL(this.src)">
+            <button class="img-thumb-del" onclick="removeFile(${i},${j})" title="削除">✕</button>
+          </div>`;
+        }).join('');
+      }
+
+      // ファイル input 経由
+      function onFileInput(i, input) {
+        addFiles(i, [...input.files]);
+        input.value = '';  // 同じファイルを再選択できるようリセット
+      }
+
+      // D&D イベント
+      function onDragOver(e, i) {
+        e.preventDefault();
+        document.getElementById(`dropzone-${i}`)?.classList.add('drag-over');
+      }
+      function onDragLeave(e, i) {
+        document.getElementById(`dropzone-${i}`)?.classList.remove('drag-over');
+      }
+      function onDrop(e, i) {
+        e.preventDefault();
+        document.getElementById(`dropzone-${i}`)?.classList.remove('drag-over');
+        const files = [...(e.dataTransfer.files || [])].filter(f => ALLOWED_TYPES.includes(f.type));
+        if (files.length) addFiles(i, files);
+      }
+
+      // ── 返信送信（複数画像対応） ──────────────────────────
+      async function sendReply(i, userId) {
+        const ta      = document.getElementById(`reply-text-${i}`);
+        const message = ta?.value.trim() || '';
+        const files   = getFiles(i);
+
+        if (!message && files.length === 0) {
+          setError('error-banner', 'テキストまたは画像のいずれかを入力してください。');
+          ta?.focus();
+          return;
+        }
+
+        // 枚数チェック（送信前にクライアント側でも検証）
+        const hasText = message.length > 0;
+        const maxImg  = hasText ? MAX_IMAGES_WITH_TEXT : MAX_IMAGES_WITHOUT_TEXT;
+        if (files.length > maxImg) {
+          setError('error-banner',
+            `画像は${hasText ? 'テキストあり時' : ''}最大 ${maxImg} 枚です。` +
+            `現在 ${files.length} 枚選択されています。${files.length - maxImg} 枚削除してください。`);
+          return;
+        }
+
+        const btn = document.getElementById(`send-btn-${i}`);
+        if (btn) btn.disabled = true;
+        setError('error-banner', '');
+
+        try {
+          // 複数画像を並列アップロード
+          let imageUrls = [];
+          if (files.length > 0) {
+            if (btn) btn.textContent = `画像アップロード中… (0/${files.length})`;
+            let done = 0;
+            imageUrls = await Promise.all(files.map(async f => {
+              const url = await apiUpload(f);
+              done++;
+              if (btn) btn.textContent = `画像アップロード中… (${done}/${files.length})`;
+              return url;
+            }));
+          }
+
+          if (btn) btn.textContent = '送信中…';
+          const payload = { userId };
+          if (message)          payload.message   = message;
+          if (imageUrls.length) payload.imageUrls = imageUrls;
+          await apiPost('send-reply', payload);
+
+          // 送信成功 → 返信パネルを閉じて確認パネルを表示
+          if (state[i]) { state[i].openReply = false; state[i].files = []; }
+          showSentConfirm(i, userId);
+        } catch(e) {
+          setError('error-banner', '送信に失敗しました: ' + e.message);
+          if (btn) { btn.disabled = false; btn.textContent = '送信'; }
+        }
+      }
+
+      // ── 送信後確認パネル ──────────────────────────────────
+      function showSentConfirm(i, userId) {
+        const card = document.getElementById(`card-${i}`);
+        if (!card) return;
+
+        // 返信パネルを除いて確認パネルを差し込む
+        const existing = card.querySelector('.reply-panel');
+        if (existing) existing.remove();
+
+        const panel = document.createElement('div');
+        panel.className = 'sent-confirm';
+        panel.id = `confirm-${i}`;
+        panel.innerHTML = `
+          <span class="sent-confirm-msg">✓ 送信しました</span>
+          <div class="sent-confirm-actions">
+            <button class="btn btn-outline btn-sm" onclick="keepInList(${i})">リストに残す</button>
+            <button class="btn btn-done btn-sm" onclick="removeFromList(${i},'${userId}')">対応完了・リストから消す</button>
+          </div>`;
+        card.appendChild(panel);
+      }
+
+      function keepInList(i) {
+        const panel = document.getElementById(`confirm-${i}`);
+        if (panel) panel.remove();
+        showToast('リストに残しました');
+      }
+
+      async function removeFromList(i, userId) {
+        try {
+          await apiPost('mark-replied', { userId });
+        } catch(_) {
+          // mark-replied失敗しても画面からは除去する
+        }
+        users.splice(i, 1);
+        Object.keys(state).forEach(k => { if (Number(k) >= i) delete state[k]; });
+        renderAll();
+        showToast('対応完了しました');
+      }
+
+      // ── ログイン ──────────────────────────────────────────
+      async function doLogin() {
+        const url    = document.getElementById('input-url').value.trim();
+        const secret = document.getElementById('input-secret').value.trim();
+        setError('login-error', '');
+        if (!url || !secret) {
+          setError('login-error', 'URL と ADMIN_SECRET を両方入力してください。');
+          return;
+        }
+        const btn = document.getElementById('btn-login');
+        btn.disabled = true; btn.textContent = '確認中…';
+        saveSession(url, secret);
+        try {
+          const data = await apiPost('get-unreplied', {});
+          users = data.users || [];
+          document.getElementById('login-screen').style.display = 'none';
+          document.getElementById('main-screen').style.display  = '';
+          const now = new Date().toLocaleString('ja-JP', {
+            timeZone:'Asia/Tokyo', year:'numeric', month:'numeric',
+            day:'numeric', hour:'2-digit', minute:'2-digit',
+          });
+          document.getElementById('header-time').textContent = now + ' JST';
+          renderAll();
+        } catch(e) {
+          clearSession();
+          setError('login-error', 'ログインに失敗しました。URL と ADMIN_SECRET を確認してください。');
+          btn.disabled = false; btn.textContent = 'ログイン';
+        }
+      }
+
+      // ── イベント ──────────────────────────────────────────
+      document.getElementById('btn-login').addEventListener('click', doLogin);
+      document.getElementById('input-secret').addEventListener('keydown', e => {
+        if (e.key === 'Enter') doLogin();
+      });
+      document.getElementById('btn-logout').addEventListener('click', () => {
+        clearSession();
+        document.getElementById('main-screen').style.display  = 'none';
+        document.getElementById('login-screen').style.display = '';
+      });
+      document.getElementById('btn-refresh').addEventListener('click', loadList);
+
+      // ── 初期化 ────────────────────────────────────────────
+      const { url, secret } = getSession();
+      if (url && secret) {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('main-screen').style.display  = '';
+        loadList();
+      }
+    </script>
+  </body>
+</html>

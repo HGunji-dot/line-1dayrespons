@@ -9,7 +9,21 @@
  *   POST /functions/v1/send-reply
  *   Authorization: Bearer <ADMIN_SECRET>
  *   Content-Type: application/json
- *   { "userId": "Uxxxxxxxxx", "message": "お問い合わせありがとうございます。" }
+ *   {
+ *     "userId": "Uxxxxxxxxx",
+ *     "message": "テキスト",          // 省略可
+ *     "imageUrls": ["https://..."],   // 省略可・複数枚対応
+ *     "generated": "AIの下書き",       // 省略可（学習用）
+ *     "tags": ["在庫確認・入荷連絡"],   // 省略可（人が確定したタグ）
+ *     "inboundText": "顧客の質問",     // 省略可（学習用）
+ *     "displayName": "山本 大樹"        // 省略可
+ *   }
+ *
+ * LINE の制約: テキスト + 画像の合計が 5件以内
+ * message あり → 画像は最大 4枚 / message なし → 画像は最大 5枚
+ *
+ * 学習データ収集: message（テキスト返信）があるとき、AI下書きと実送信文を
+ * reply_feedback へ記録する。この書き込みは非致命的（失敗しても送信は成功扱い）。
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -21,41 +35,85 @@ const supabase = createClient(
 
 const LINE_CHANNEL_ACCESS_TOKEN = Deno.env.get("LINE_CHANNEL_ACCESS_TOKEN")!;
 const ADMIN_SECRET = Deno.env.get("ADMIN_SECRET")!;
+const LINE_MAX_MESSAGES = 5;
 
 Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders() });
+  }
+
   if (req.method !== "POST") {
     return json({ error: "Method Not Allowed" }, 405);
   }
 
-  // 管理者認証（シンプルな Bearer トークン方式）
   const authHeader = req.headers.get("Authorization") ?? "";
   if (authHeader !== `Bearer ${ADMIN_SECRET}`) {
     return json({ error: "Unauthorized" }, 401);
   }
 
-  let body: { userId?: string; message?: string };
+  let body: {
+    userId?: string;
+    message?: string;
+    imageUrls?: string[];
+    generated?: string;
+    tags?: string[];
+    inboundText?: string;
+    displayName?: string;
+  };
   try {
     body = await req.json();
   } catch {
     return json({ error: "Invalid JSON" }, 400);
   }
 
-  const { userId, message } = body;
-  if (!userId || !message) {
-    return json({ error: "userId and message are required" }, 400);
+  const { userId, message, imageUrls = [], generated, tags, inboundText, displayName } = body;
+  if (!userId) {
+    return json({ error: "userId is required" }, 400);
+  }
+  if (!message && imageUrls.length === 0) {
+    return json({ error: "message or imageUrls is required" }, 400);
   }
 
-  // 1. LINE Push API でメッセージ送信
+  // LINE メッセージ数バリデーション（テキスト + 画像 ≤ 5件）
+  const textCount  = message ? 1 : 0;
+  const imageCount = imageUrls.length;
+  const total      = textCount + imageCount;
+  if (total > LINE_MAX_MESSAGES) {
+    return json(
+      {
+        error: `LINE の1回の送信上限は ${LINE_MAX_MESSAGES} 件です。` +
+               `現在 テキスト ${textCount} 件 + 画像 ${imageCount} 枚 = ${total} 件になっています。` +
+               `画像を ${total - LINE_MAX_MESSAGES} 枚減らしてください。`,
+      },
+      422
+    );
+  }
+
+  // LINE メッセージオブジェクトを構築
+  type LineMessage =
+    | { type: "text"; text: string }
+    | { type: "image"; originalContentUrl: string; previewImageUrl: string };
+
+  const lineMessages: LineMessage[] = [];
+  if (message) {
+    lineMessages.push({ type: "text", text: message });
+  }
+  for (const url of imageUrls) {
+    lineMessages.push({
+      type: "image",
+      originalContentUrl: url,
+      previewImageUrl: url,
+    });
+  }
+
+  // LINE Push API で送信
   const lineRes = await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
     },
-    body: JSON.stringify({
-      to: userId,
-      messages: [{ type: "text", text: message }],
-    }),
+    body: JSON.stringify({ to: userId, messages: lineMessages }),
   });
 
   if (!lineRes.ok) {
@@ -66,11 +124,11 @@ Deno.serve(async (req: Request) => {
 
   const messageId = `push-${Date.now()}-${userId}`;
 
-  // 2. outbound メッセージを DB に記録
+  // outbound を DB に記録
   const { error: insertError } = await supabase.from("messages").insert({
     user_id: userId,
     message_id: messageId,
-    text: message,
+    text: message ?? imageUrls[0] ?? "",
     direction: "outbound",
     received_at: new Date().toISOString(),
     replied: true,
@@ -81,7 +139,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "DB insert failed" }, 500);
   }
 
-  // 3. このユーザーの未返信 inbound を一括で replied=true にする
+  // 未返信 inbound を一括で replied=true にする
   const { error: rpcError } = await supabase.rpc("mark_user_replied", {
     target_user_id: userId,
   });
@@ -91,12 +149,37 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Failed to update replied status" }, 500);
   }
 
-  return json({ success: true, userId, message });
+  // 学習データ収集（非致命的）: テキスト返信のとき AI下書き↔実送信文を記録する。
+  // 返信は既に送信済みのため、ここで失敗しても送信は成功として扱う。
+  if (message) {
+    const { error: feedbackError } = await supabase.from("reply_feedback").insert({
+      user_id: userId,
+      display_name: displayName ?? null,
+      tags: tags ?? [],
+      inbound_text: inboundText ?? null,
+      generated: generated ?? "",
+      sent: message,
+      status: "pending",
+    });
+    if (feedbackError) {
+      console.error("reply_feedback insert error (non-fatal):", feedbackError);
+    }
+  }
+
+  return json({ success: true, userId, message, imageUrls });
 });
+
+function corsHeaders(): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...corsHeaders() },
   });
 }
